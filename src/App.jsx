@@ -34,6 +34,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'bumi-adipura-v1';
 
+// my first commit
 // --- ASSETS ---
 const logoUrl = "https://lh3.googleusercontent.com/d/1oPheVvQCJmnBBxqfBp1Ev9iHfebaOSvb"; 
 
