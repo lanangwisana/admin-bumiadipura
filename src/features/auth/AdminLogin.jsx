@@ -1,3 +1,4 @@
+// use client;
 import React, { useState, useEffect } from 'react';
 import { Lock, LogIn, Loader2 } from 'lucide-react';
 import { collection, addDoc, getDocs, query } from 'firebase/firestore';
