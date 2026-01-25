@@ -33,15 +33,21 @@ const ContentManager = ({ user, role }) => {
     const [editingEventId, setEditingEventId] = useState(null);
     const [editingNewsId, setEditingNewsId] = useState(null);
     
-    // State untuk Pagination History News
+    // State untuk Pagination
     const [historyPage, setHistoryPage] = useState(1);
+    const [eventsHistoryPage, setEventsHistoryPage] = useState(1);
     const HISTORY_PER_PAGE = 5;
 
     // READ (events and news) - Realtime listener
     useEffect(() => {
         if (!user) return;
+        // Query events with orderBy createdAt descending (newest first)
+        const eventsQuery = query(
+            collection(db, 'artifacts', APP_ID, 'public', 'data', 'events'),
+            orderBy('createdAt', 'desc')
+        );
         const unsubEvents = onSnapshot(
-            collection(db, 'artifacts', APP_ID, 'public', 'data', 'events'), 
+            eventsQuery, 
             (s) => setEvents(s.docs.map(d => ({id: d.id, ...d.data()})))
         );
         // Query news with orderBy createdAt descending (newest first)
@@ -179,6 +185,7 @@ const ContentManager = ({ user, role }) => {
             </div>
 
             {activeTab === 'events' ? (
+                <>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {/* Form Event (Kiri) */}
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 h-fit">
@@ -242,45 +249,158 @@ const ContentManager = ({ user, role }) => {
                         </form>
                     </div>
                     
-                    {/* Events List (Kanan) */}
-                    <div className="md:col-span-2 space-y-3">
-                        {events.map(ev => (
-                            <div 
-                                key={ev.id} 
-                                onClick={() => handleClickEvent(ev)}
-                                className={`bg-white p-4 rounded-xl shadow-sm border flex justify-between items-center cursor-pointer transition-all ${
-                                    editingEventId === ev.id 
-                                        ? 'border-blue-500 ring-2 ring-blue-100' 
-                                        : 'border-slate-100 hover:border-slate-300'
-                                }`}
-                            >
-                                <div>
-                                    <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded font-bold text-slate-500 mb-1 inline-block">
-                                        {ev.category}
-                                    </span>
-                                    <h4 className="font-bold text-slate-800">{ev.title}</h4>
-                                    <p className="text-xs text-slate-500">{ev.date} • {ev.location}</p>
+                    {/* Events List - 3 Terbaru */}
+                    <div className="md:col-span-2 space-y-4">
+                        <div className="space-y-3">
+                            <h4 className="text-sm font-bold text-slate-600">Kegiatan Terbaru</h4>
+                            {events.slice(0, 3).map(ev => (
+                                <div 
+                                    key={ev.id} 
+                                    onClick={() => handleClickEvent(ev)}
+                                    className={`bg-white p-4 rounded-xl shadow-sm border flex justify-between items-center cursor-pointer transition-all ${
+                                        editingEventId === ev.id 
+                                            ? 'border-blue-500 ring-2 ring-blue-100' 
+                                            : 'border-slate-100 hover:border-slate-300'
+                                    }`}
+                                >
+                                    <div>
+                                        <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded font-bold text-slate-500 mb-1 inline-block">
+                                            {ev.category}
+                                        </span>
+                                        <h4 className="font-bold text-slate-800">{ev.title}</h4>
+                                        <p className="text-xs text-slate-500">{ev.date} - {ev.location}</p>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); handleDelete('events', ev.id); }} 
+                                            className="text-red-400 hover:text-red-600 p-2"
+                                            title="Hapus"
+                                        >
+                                            <Trash2 className="w-4 h-4"/>
+                                        </button>
+                                    </div>
                                 </div>
-                                <div className="flex gap-2">
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); handleClickEvent(ev); }}
-                                        className="text-blue-400 hover:text-blue-600 p-2"
-                                        title="Edit"
-                                    >
-                                        <Edit2 className="w-4 h-4"/>
-                                    </button>
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); handleDelete('events', ev.id); }} 
-                                        className="text-red-400 hover:text-red-600 p-2"
-                                        title="Hapus"
-                                    >
-                                        <Trash2 className="w-4 h-4"/>
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
+                            ))}
+                        </div>
                     </div>
                 </div>
+
+                {/* Events History Table - Full Width */}
+                {events.length > 3 && (
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden mt-6">
+                        <div className="p-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <h4 className="text-sm font-bold text-slate-700">Riwayat Kegiatan</h4>
+                                <span className="text-xs text-slate-400">({events.slice(3).length} data)</span>
+                            </div>
+                            {/* Pagination - Modern Style */}
+                            {(() => {
+                                const totalPages = Math.ceil(events.slice(3).length / HISTORY_PER_PAGE);
+                                if (totalPages <= 1) return null;
+                                
+                                const renderPageButton = (page) => (
+                                    <button
+                                        key={page}
+                                        onClick={() => setEventsHistoryPage(page)}
+                                        className={`min-w-[32px] h-8 px-2 text-xs font-semibold rounded-md transition-all ${
+                                            eventsHistoryPage === page
+                                                ? 'bg-emerald-600 text-white shadow-sm'
+                                                : 'text-slate-600 hover:bg-slate-100'
+                                        }`}
+                                    >
+                                        {page}
+                                    </button>
+                                );
+                                
+                                const pages = [];
+                                pages.push(renderPageButton(1));
+                                if (eventsHistoryPage > 3) {
+                                    pages.push(<span key="dots1" className="text-slate-300 text-xs">...</span>);
+                                }
+                                const start = Math.max(2, eventsHistoryPage - 1);
+                                const end = Math.min(totalPages - 1, eventsHistoryPage + 1);
+                                for (let i = start; i <= end; i++) {
+                                    if (i !== 1 && i !== totalPages) {
+                                        pages.push(renderPageButton(i));
+                                    }
+                                }
+                                if (eventsHistoryPage < totalPages - 2) {
+                                    pages.push(<span key="dots2" className="text-slate-300 text-xs">...</span>);
+                                }
+                                if (totalPages > 1) {
+                                    pages.push(renderPageButton(totalPages));
+                                }
+                                
+                                return (
+                                    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+                                        <button
+                                            onClick={() => setEventsHistoryPage(p => Math.max(1, p - 1))}
+                                            disabled={eventsHistoryPage === 1}
+                                            className="w-8 h-8 flex items-center justify-center rounded-md text-slate-500 hover:bg-white hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                        >
+                                            <ChevronLeft className="w-4 h-4"/>
+                                        </button>
+                                        <div className="flex items-center gap-0.5">{pages}</div>
+                                        <button
+                                            onClick={() => setEventsHistoryPage(p => Math.min(totalPages, p + 1))}
+                                            disabled={eventsHistoryPage === totalPages}
+                                            className="w-8 h-8 flex items-center justify-center rounded-md text-slate-500 hover:bg-white hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                        >
+                                            <ChevronRight className="w-4 h-4"/>
+                                        </button>
+                                    </div>
+                                );
+                            })()}
+                        </div>
+                        <table className="w-full text-sm">
+                            <thead className="bg-slate-50 text-left">
+                                <tr>
+                                    <th className="p-4 font-bold text-slate-600">Nama Kegiatan</th>
+                                    <th className="p-4 font-bold text-slate-600">Kategori</th>
+                                    <th className="p-4 font-bold text-slate-600">Tanggal</th>
+                                    <th className="p-4 font-bold text-slate-600">Lokasi</th>
+                                    <th className="p-4 font-bold text-slate-600 text-center">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {events.slice(3).slice((eventsHistoryPage - 1) * HISTORY_PER_PAGE, eventsHistoryPage * HISTORY_PER_PAGE).map(ev => (
+                                    <tr 
+                                        key={ev.id} 
+                                        onClick={() => handleClickEvent(ev)}
+                                        className={`border-t cursor-pointer transition-colors ${
+                                            editingEventId === ev.id 
+                                                ? 'bg-blue-50' 
+                                                : 'hover:bg-slate-50'
+                                        }`}
+                                    >
+                                        <td className="p-4">
+                                            <p className="font-bold text-slate-800">{ev.title}</p>
+                                        </td>
+                                        <td className="p-4">
+                                            <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded font-bold text-slate-500">
+                                                {ev.category}
+                                            </span>
+                                        </td>
+                                        <td className="p-4 text-slate-500 text-xs">{ev.date}</td>
+                                        <td className="p-4 text-slate-500 text-xs">{ev.location}</td>
+                                        <td className="p-4">
+                                            <div className="flex gap-2 justify-center">
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); handleDelete('events', ev.id); }} 
+                                                    className="text-red-400 hover:text-red-600 p-1"
+                                                    title="Hapus"
+                                                >
+                                                    <Trash2 className="w-4 h-4"/>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+                </>
             ) : (
                 <>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
