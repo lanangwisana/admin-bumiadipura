@@ -17,7 +17,7 @@ const ContentManager = ({ user, role }) => {
     const [formEvent, setFormEvent] = useState({ title: '', date: '', location: '', category: 'Umum' });
     const [formNews, setFormNews] = useState({ title: '', content: '', category: 'Pengumuman' });
 
-    // Helper: Get color based on category
+    // Helper: Get color based on category (News)
     const getCategoryColor = (cat) => {
         const colors = {
             'Pengumuman': 'bg-red-100 text-red-700',
@@ -26,6 +26,18 @@ const ContentManager = ({ user, role }) => {
             'Lingkungan': 'bg-blue-100 text-blue-700',
             'Keuangan': 'bg-purple-100 text-purple-700',
             'Kegiatan': 'bg-yellow-100 text-yellow-700'
+        };
+        return colors[cat] || 'bg-slate-100 text-slate-700';
+    };
+
+    // Helper: Get color based on category (Events)
+    const getEventCategoryColor = (cat) => {
+        const colors = {
+            'Umum': 'bg-slate-100 text-slate-700',
+            'Kesehatan': 'bg-green-100 text-green-700',
+            'Keagamaan': 'bg-purple-100 text-purple-700',
+            'Kerja Bakti': 'bg-amber-100 text-amber-700',
+            'Hiburan': 'bg-pink-100 text-pink-700'
         };
         return colors[cat] || 'bg-slate-100 text-slate-700';
     };
@@ -263,7 +275,7 @@ const ContentManager = ({ user, role }) => {
                                     }`}
                                 >
                                     <div>
-                                        <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded font-bold text-slate-500 mb-1 inline-block">
+                                        <span className={`text-[10px] px-2 py-0.5 rounded font-bold mb-1 inline-block ${getEventCategoryColor(ev.category)}`}>
                                             {ev.category}
                                         </span>
                                         <h4 className="font-bold text-slate-800">{ev.title}</h4>
@@ -376,7 +388,7 @@ const ContentManager = ({ user, role }) => {
                                             <p className="font-bold text-slate-800">{ev.title}</p>
                                         </td>
                                         <td className="p-4">
-                                            <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded font-bold text-slate-500">
+                                            <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${getEventCategoryColor(ev.category)}`}>
                                                 {ev.category}
                                             </span>
                                         </td>
