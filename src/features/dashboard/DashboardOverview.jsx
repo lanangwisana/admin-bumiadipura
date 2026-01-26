@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
     Users, CreditCard, AlertTriangle, Shield, 
-    Radio, Brain, Sparkles, RefreshCw, BookOpen, FileText 
+    Radio, Brain, Sparkles, RefreshCw, BookOpen, FileText,
+    Clock, CheckCircle, AlertCircle
 } from 'lucide-react';
 import { doc, onSnapshot, collection, query, where, orderBy, limit, addDoc } from 'firebase/firestore';
 import { db, APP_ID } from '../../config';
@@ -9,6 +10,13 @@ import { formatDate } from '../../utils';
 import { callGeminiAPI } from '../../utils';
 import { StatCard, BroadcastModal } from './components';
 
+/**
+ * Dashboard Overview Component
+ * Features:
+ * 1. Shortcut Broadcast - Pop Up dengan Judul Pengumuman dan Isi Pesan
+ * 2. Ringkasan Data (Cards) - Total Warga, Tagihan Pending, Laporan Terbaru, Status Main Gate
+ * 3. Laporan Terbaru (Table) - Max 3 laporan, urut tanggal terbaru, status laporan
+ */
 const DashboardOverview = ({ user, role }) => {
     const [stats, setStats] = useState({ 
         residents: 0, 
@@ -24,6 +32,7 @@ const DashboardOverview = ({ user, role }) => {
     useEffect(() => {
         if (!user) return;
         
+        // Gate Status Listener
         const unsubGate = onSnapshot(
             doc(db, 'artifacts', APP_ID, 'public', 'data', 'iot_devices', 'gate_main'), 
             (s) => { 
@@ -31,17 +40,19 @@ const DashboardOverview = ({ user, role }) => {
             }
         );
         
+        // Total Residents Listener
         const unsubResidents = onSnapshot(
             collection(db, 'artifacts', APP_ID, 'public', 'data', 'residents'), 
             (s) => setStats(prev => ({...prev, residents: s.size}))
         );
         
+        // Open Reports Count Listener
         const unsubReports = onSnapshot(
             query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'reports'), where('status', '==', 'OPEN')), 
             (s) => setStats(prev => ({...prev, openReports: s.size}))
         );
         
-        // Recent Reports
+        // Recent Reports - Max 3, ordered by date desc
         const unsubList = onSnapshot(
             query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'reports'), orderBy('createdAt', 'desc'), limit(3)), 
             (s) => setRecentReports(s.docs.map(d => ({id: d.id, ...d.data()})))
@@ -55,6 +66,7 @@ const DashboardOverview = ({ user, role }) => {
         };
     }, [user]);
 
+    // Generate AI Daily Briefing
     const generateBriefing = async () => {
         setIsGeneratingBriefing(true);
         const prompt = `Buat ringkasan harian admin: ${stats.residents} warga total, ${stats.openReports} laporan warga menunggu, status gerbang utama ${stats.gateStatus}. Berikan saran prioritas.`;
@@ -63,11 +75,12 @@ const DashboardOverview = ({ user, role }) => {
         setIsGeneratingBriefing(false);
     };
 
+    // Send Broadcast to news collection
     const sendBroadcast = async (data) => {
         await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'news'), {
             ...data,
             cat: 'Pengumuman',
-            date: new Date().toLocaleDateString(),
+            date: new Date().toLocaleDateString('id-ID'),
             sender: role.label,
             createdAt: new Date().toISOString(),
             image: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?auto=format&fit=crop&w=400&q=80',
@@ -77,24 +90,59 @@ const DashboardOverview = ({ user, role }) => {
         alert("Broadcast terkirim!");
     };
 
+    // Get status badge styling
+    const getStatusBadge = (status) => {
+        switch(status) {
+            case 'OPEN':
+                return { 
+                    bg: 'bg-red-100', 
+                    text: 'text-red-700', 
+                    icon: AlertCircle,
+                    label: 'Menunggu'
+                };
+            case 'IN_PROGRESS':
+                return { 
+                    bg: 'bg-yellow-100', 
+                    text: 'text-yellow-700', 
+                    icon: Clock,
+                    label: 'Diproses'
+                };
+            case 'DONE':
+                return { 
+                    bg: 'bg-green-100', 
+                    text: 'text-green-700', 
+                    icon: CheckCircle,
+                    label: 'Selesai'
+                };
+            default:
+                return { 
+                    bg: 'bg-gray-100', 
+                    text: 'text-gray-700', 
+                    icon: AlertCircle,
+                    label: status
+                };
+        }
+    };
+
     return (
         <div className="space-y-6 animate-fade-in">
-            {/* Header */}
+            {/* Header with Broadcast Button */}
             <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
                 <div>
                     <h2 className="text-3xl font-bold text-slate-800 tracking-tight">Dashboard Utama</h2>
                     <p className="text-slate-500 font-medium">Overview aktivitas Bumi Adipura hari ini.</p>
                 </div>
+                {/* Shortcut Broadcast Button */}
                 <button 
                     onClick={() => setShowBroadcast(true)} 
-                    className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-3 hover:bg-slate-800 shadow-xl shadow-slate-200 transition-transform active:scale-95"
+                    className="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-3 hover:from-red-700 hover:to-red-800 shadow-xl shadow-red-200 transition-all hover:scale-105 active:scale-95"
                 >
-                    <Radio className="w-5 h-5 text-red-400 animate-pulse"/>
+                    <Radio className="w-5 h-5 animate-pulse"/>
                     Buat Pengumuman
                 </button>
             </div>
 
-            {/* AI Insight */}
+            {/* AI Insight Section */}
             <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-3xl p-8 text-white shadow-2xl relative overflow-hidden">
                 <div className="absolute right-0 top-0 p-8 opacity-10">
                     <Brain className="w-40 h-40 text-white" />
@@ -127,48 +175,89 @@ const DashboardOverview = ({ user, role }) => {
                 </div>
             </div>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatCard title="Total Warga" value={stats.residents} sub="Terdaftar Aktif" icon={Users} color="bg-blue-500" />
-                <StatCard title="Tagihan Pending" value="---" sub="Bulan Ini" icon={CreditCard} color="bg-orange-500" />
-                <StatCard title="Laporan Baru" value={stats.openReports} sub="Menunggu Respon" icon={AlertTriangle} color="bg-red-500" />
-                <StatCard title="Main Gate" value={stats.gateStatus} sub="Status IoT Realtime" icon={Shield} color={stats.gateStatus === 'TERBUKA' ? 'bg-red-500' : 'bg-green-500'} />
+            {/* Ringkasan Data - Stats Grid */}
+            <div>
+                <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-emerald-600"/>
+                    Ringkasan Data
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <StatCard title="Total Warga" value={stats.residents} sub="Kepala Keluarga Terdaftar" icon={Users} color="bg-blue-500" />
+                    <StatCard title="Tagihan Pending" value="---" sub="IPL Bulan Ini" icon={CreditCard} color="bg-orange-500" />
+                    <StatCard title="Laporan Terbaru" value={stats.openReports} sub="Menunggu Respon" icon={AlertTriangle} color="bg-red-500" />
+                    <StatCard title="Status Main Gate" value={stats.gateStatus} sub="IoT Realtime" icon={Shield} color={stats.gateStatus === 'TERBUKA' ? 'bg-red-500' : 'bg-green-500'} />
+                </div>
             </div>
 
-            {/* Reports Table */}
+            {/* Laporan Terbaru Table - Max 3, sorted by date, with status */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                <div className="p-6 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white flex justify-between items-center">
                     <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                        <FileText className="w-5 h-5 text-orange-500"/>
+                        <AlertTriangle className="w-5 h-5 text-orange-500"/>
                         Laporan Warga Terbaru
                     </h3>
-                    <button className="text-xs font-bold text-blue-600 hover:underline">Lihat Semua</button>
+                    <span className="text-xs text-slate-400">Maksimal 3 laporan terbaru</span>
                 </div>
-                <div className="divide-y divide-slate-100">
-                    {recentReports.length === 0 ? (
-                        <p className="p-8 text-center text-slate-400 italic">Tidak ada laporan baru.</p>
-                    ) : (
-                        recentReports.map(r => (
-                            <div key={r.id} className="p-4 flex items-center gap-4 hover:bg-slate-50 transition-colors">
-                                <div className={`w-3 h-3 rounded-full flex-shrink-0 ${
-                                    r.status === 'OPEN' ? 'bg-red-500' : 
-                                    r.status === 'IN_PROGRESS' ? 'bg-yellow-500' : 'bg-green-500'
-                                }`}></div>
-                                <div className="flex-1 min-w-0">
-                                    <h4 className="font-bold text-slate-800 text-sm">{r.category}</h4>
-                                    <p className="text-xs text-slate-500 truncate">{r.description}</p>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-xs font-bold text-slate-700">{r.userName}</p>
-                                    <p className="text-[10px] text-slate-400">{formatDate(r.createdAt)}</p>
-                                </div>
-                            </div>
-                        ))
-                    )}
+                
+                {/* Table */}
+                <div className="overflow-x-auto">
+                    <table className="w-full">
+                        <thead className="bg-slate-50 border-b border-slate-100">
+                            <tr>
+                                <th className="text-left p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Kategori</th>
+                                <th className="text-left p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Deskripsi</th>
+                                <th className="text-left p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Pelapor</th>
+                                <th className="text-left p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Tanggal</th>
+                                <th className="text-center p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {recentReports.length === 0 ? (
+                                <tr>
+                                    <td colSpan="5" className="p-8 text-center text-slate-400 italic">
+                                        Tidak ada laporan baru.
+                                    </td>
+                                </tr>
+                            ) : (
+                                recentReports.map(r => {
+                                    const statusBadge = getStatusBadge(r.status);
+                                    const StatusIcon = statusBadge.icon;
+                                    
+                                    return (
+                                        <tr key={r.id} className="hover:bg-slate-50 transition-colors">
+                                            <td className="p-4">
+                                                <span className="font-bold text-slate-800">{r.category}</span>
+                                            </td>
+                                            <td className="p-4">
+                                                <p className="text-sm text-slate-600 line-clamp-2 max-w-xs">
+                                                    {r.description}
+                                                </p>
+                                            </td>
+                                            <td className="p-4">
+                                                <div>
+                                                    <p className="font-medium text-slate-800 text-sm">{r.userName}</p>
+                                                    <p className="text-xs text-slate-400">{r.userUnit}</p>
+                                                </div>
+                                            </td>
+                                            <td className="p-4">
+                                                <p className="text-sm text-slate-600">{formatDate(r.createdAt)}</p>
+                                            </td>
+                                            <td className="p-4 text-center">
+                                                <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${statusBadge.bg} ${statusBadge.text}`}>
+                                                    <StatusIcon className="w-3.5 h-3.5"/>
+                                                    {statusBadge.label}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            )}
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
-            {/* Broadcast Modal */}
+            {/* Broadcast Modal - Pop Up dengan Judul Pengumuman dan Isi Pesan */}
             <BroadcastModal 
                 isOpen={showBroadcast} 
                 onClose={() => setShowBroadcast(false)} 
