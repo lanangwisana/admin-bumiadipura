@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { Trash2, Edit2, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, query, orderBy } from 'firebase/firestore';
 import { db, APP_ID } from '../../config';
-import { formatDate } from '../../utils';
+import { formatDate, formatEventDate } from '../../utils';
+import { DatePicker } from '../../components/ui/DatePicker';
 
 const ContentManager = ({ user, role }) => {
     // State untuk data
@@ -211,12 +212,10 @@ const ContentManager = ({ user, role }) => {
                                 onChange={e => setFormEvent({...formEvent, title: e.target.value})} 
                                 required
                             />
-                            <input 
-                                className="w-full p-2 border rounded-lg text-sm" 
-                                placeholder="Tanggal (misal: 17 Agustus)" 
-                                value={formEvent.date} 
-                                onChange={e => setFormEvent({...formEvent, date: e.target.value})} 
-                                required
+                            <DatePicker
+                                value={formEvent.date}
+                                onChange={(date) => setFormEvent({...formEvent, date: date})}
+                                placeholder="Pilih Tanggal Kegiatan"
                             />
                             <input 
                                 className="w-full p-2 border rounded-lg text-sm" 
@@ -268,7 +267,7 @@ const ContentManager = ({ user, role }) => {
                                             {ev.category}
                                         </span>
                                         <h4 className="font-bold text-slate-800">{ev.title}</h4>
-                                        <p className="text-xs text-slate-500">{ev.date} - {ev.location}</p>
+                                        <p className="text-xs text-slate-500">{formatEventDate(ev.date)} - {ev.location}</p>
                                     </div>
                                     <div className="flex gap-2">
                                         <button 
@@ -381,7 +380,7 @@ const ContentManager = ({ user, role }) => {
                                                 {ev.category}
                                             </span>
                                         </td>
-                                        <td className="p-4 text-slate-500 text-xs">{ev.date}</td>
+                                        <td className="p-4 text-slate-500 text-xs">{formatEventDate(ev.date)}</td>
                                         <td className="p-4 text-slate-500 text-xs">{ev.location}</td>
                                         <td className="p-4">
                                             <div className="flex gap-2 justify-center">
