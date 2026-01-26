@@ -26,3 +26,33 @@ export const formatRupiah = (number) => {
         minimumFractionDigits: 0 
     }).format(number);
 };
+
+/**
+ * Format ISO date string to Indonesian event date format
+ * @param {string} isoString - ISO date string
+ * @returns {string} Formatted date string (e.g., "17 Agustus 2025")
+ */
+export const formatEventDate = (isoString) => {
+    if (!isoString) return '-';
+    const months = [
+        'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+        'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    const d = new Date(isoString);
+    return `${d.getDate()} ${months[d.getMonth()]}`;
+};
+
+/**
+ * Format ISO date string to full Indonesian date format
+ * @param {string} isoString - ISO date string
+ * @returns {string} Formatted date string (e.g., "17 Agustus 2025")
+ */
+export const formatEventDateFull = (isoString) => {
+    if (!isoString) return '-';
+    const months = [
+        'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+        'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    const d = new Date(isoString);
+    return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+};
