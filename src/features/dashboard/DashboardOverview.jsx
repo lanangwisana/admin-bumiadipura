@@ -94,7 +94,11 @@ const DashboardOverview = ({ user, role }) => {
             sender: role.label,
             createdAt: new Date().toISOString(),
             image: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?auto=format&fit=crop&w=400&q=80',
-            color: 'bg-red-100 text-red-700'
+            color: 'bg-red-100 text-red-700',
+            // Tambahkan info pembuat untuk access control
+            createdBy: role?.type === 'RW' ? 'RW' : `RT${role?.id}`,
+            createdByUid: user?.uid || null,
+            createdByName: role?.label || 'Unknown'
         });
         setShowBroadcast(false);
         alert("Broadcast terkirim!");

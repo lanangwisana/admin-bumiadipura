@@ -51,6 +51,28 @@ const ContentManager = ({ user, role }) => {
     const [eventsHistoryPage, setEventsHistoryPage] = useState(1);
     const HISTORY_PER_PAGE = 5;
 
+    // ========== ROLE-BASED ACCESS CONTROL ==========
+    /**
+     * Cek apakah user bisa edit/hapus item berdasarkan role:
+     * - RW (Super Admin): Bisa edit/hapus SEMUA
+     * - RT: Hanya bisa edit/hapus miliknya sendiri
+     */
+    const canEditNews = (newsItem) => {
+        // RW bisa edit semua
+        if (role?.type === 'RW') return true;
+        
+        // RT hanya bisa edit miliknya sendiri
+        return newsItem.createdBy === `RT${role?.id}`;
+    };
+
+    const canEditEvent = (eventItem) => {
+        // RW bisa edit semua
+        if (role?.type === 'RW') return true;
+        
+        // RT hanya bisa edit miliknya sendiri
+        return eventItem.createdBy === `RT${role?.id}`;
+    };
+
     // READ (events and news) - Realtime listener
     useEffect(() => {
         if (!user) return;
@@ -80,7 +102,11 @@ const ContentManager = ({ user, role }) => {
         e.preventDefault(); 
         await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'events'), {
             ...formEvent,
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            // Tambahkan info pembuat untuk access control
+            createdBy: role?.type === 'RW' ? 'RW' : `RT${role?.id}`,
+            createdByUid: user?.uid || null,
+            createdByName: role?.label || 'Unknown'
         }); 
         setFormEvent({ title: '', date: '', location: '', category: 'Umum' }); 
         alert("Kegiatan tersimpan!"); 
@@ -90,6 +116,14 @@ const ContentManager = ({ user, role }) => {
     const handleUpdateEvent = async (e) => {
         e.preventDefault();
         if (!editingEventId) return;
+        
+        // Validasi akses sebelum update
+        const eventToEdit = events.find(ev => ev.id === editingEventId);
+        if (eventToEdit && !canEditEvent(eventToEdit)) {
+            alert("⛔ Anda tidak memiliki akses untuk mengedit kegiatan ini!");
+            cancelEditEvent();
+            return;
+        }
         
         await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'events', editingEventId), {
             ...formEvent,
@@ -111,7 +145,11 @@ const ContentManager = ({ user, role }) => {
             cat: formNews.category, 
             sender: role.label, 
             createdAt: new Date().toISOString(), 
-            color: getCategoryColor(formNews.category) 
+            color: getCategoryColor(formNews.category),
+            // Tambahkan info pembuat untuk access control
+            createdBy: role?.type === 'RW' ? 'RW' : `RT${role?.id}`,
+            createdByUid: user?.uid || null,
+            createdByName: role?.label || 'Unknown'
         }); 
         setFormNews({title: '', content: '', category: 'Pengumuman'}); 
         alert("Broadcast terkirim!"); 
@@ -121,6 +159,14 @@ const ContentManager = ({ user, role }) => {
     const handleUpdateNews = async (e) => {
         e.preventDefault();
         if (!editingNewsId) return;
+        
+        // Validasi akses sebelum update
+        const newsToEdit = news.find(n => n.id === editingNewsId);
+        if (newsToEdit && !canEditNews(newsToEdit)) {
+            alert("⛔ Anda tidak memiliki akses untuk mengedit broadcast ini!");
+            cancelEditNews();
+            return;
+        }
         
         await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'news', editingNewsId), {
             title: formNews.title,
@@ -135,15 +181,38 @@ const ContentManager = ({ user, role }) => {
         alert("Berita berhasil diperbarui!");
     };
     
-    // DELETE
+    // DELETE dengan validasi akses
     const handleDelete = async (col, id) => { 
+        // Validasi akses sebelum delete
+        if (col === 'news') {
+            const newsToDelete = news.find(n => n.id === id);
+            if (newsToDelete && !canEditNews(newsToDelete)) {
+                alert("⛔ Anda tidak memiliki akses untuk menghapus broadcast ini!");
+                return;
+            }
+        }
+        
+        if (col === 'events') {
+            const eventToDelete = events.find(ev => ev.id === id);
+            if (eventToDelete && !canEditEvent(eventToDelete)) {
+                alert("⛔ Anda tidak memiliki akses untuk menghapus kegiatan ini!");
+                return;
+            }
+        }
+        
         if (confirm('Hapus?')) {
             await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', col, id)); 
         }
     };
 
-    // Click item to Edit (Auto-fill form)=
+    // Click item to Edit (Auto-fill form) - dengan validasi akses
     const handleClickEvent = (ev) => {
+        // Cek akses sebelum masuk mode edit
+        if (!canEditEvent(ev)) {
+            alert("⛔ Anda hanya bisa mengedit kegiatan yang Anda buat sendiri!");
+            return;
+        }
+        
         setFormEvent({
             title: ev.title || '',
             date: ev.date || '',
@@ -154,6 +223,12 @@ const ContentManager = ({ user, role }) => {
     };
 
     const handleClickNews = (n) => {
+        // Cek akses sebelum masuk mode edit
+        if (!canEditNews(n)) {
+            alert("⛔ Anda hanya bisa mengedit broadcast yang Anda buat sendiri!");
+            return;
+        }
+        
         setFormNews({
             title: n.title || '',
             content: n.content || '',
@@ -282,13 +357,16 @@ const ContentManager = ({ user, role }) => {
                                         <p className="text-xs text-slate-500">{formatEventDate(ev.date)} - {ev.location}</p>
                                     </div>
                                     <div className="flex gap-2">
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); handleDelete('events', ev.id); }} 
-                                            className="text-red-400 hover:text-red-600 p-2"
-                                            title="Hapus"
-                                        >
-                                            <Trash2 className="w-4 h-4"/>
-                                        </button>
+                                        {/* Tombol hapus hanya muncul jika punya akses */}
+                                        {canEditEvent(ev) && (
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); handleDelete('events', ev.id); }} 
+                                                className="text-red-400 hover:text-red-600 p-2"
+                                                title="Hapus"
+                                            >
+                                                <Trash2 className="w-4 h-4"/>
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             ))}
@@ -396,13 +474,16 @@ const ContentManager = ({ user, role }) => {
                                         <td className="p-4 text-slate-500 text-xs">{ev.location}</td>
                                         <td className="p-4">
                                             <div className="flex gap-2 justify-center">
-                                                <button 
-                                                    onClick={(e) => { e.stopPropagation(); handleDelete('events', ev.id); }} 
-                                                    className="text-red-400 hover:text-red-600 p-1"
-                                                    title="Hapus"
-                                                >
-                                                    <Trash2 className="w-4 h-4"/>
-                                                </button>
+                                                {/* Tombol hapus hanya muncul jika punya akses */}
+                                                {canEditEvent(ev) && (
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); handleDelete('events', ev.id); }} 
+                                                        className="text-red-400 hover:text-red-600 p-1"
+                                                        title="Hapus"
+                                                    >
+                                                        <Trash2 className="w-4 h-4"/>
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
@@ -494,20 +575,16 @@ const ContentManager = ({ user, role }) => {
                                         <p className="text-xs text-slate-500">{formatDate(n.createdAt)} - Oleh {n.sender}</p>
                                     </div>
                                     <div className="flex gap-2">
-                                        {/* <button 
-                                            onClick={(e) => { e.stopPropagation(); handleClickNews(n); }}
-                                            className="text-blue-400 hover:text-blue-600 p-2"
-                                            title="Edit"
-                                        >
-                                            <Edit2 className="w-4 h-4"/>
-                                        </button> */}
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); handleDelete('news', n.id); }} 
-                                            className="text-red-400 hover:text-red-600 p-2"
-                                            title="Hapus"
-                                        >
-                                            <Trash2 className="w-4 h-4"/>
-                                        </button>
+                                        {/* Tombol hapus hanya muncul jika punya akses */}
+                                        {canEditNews(n) && (
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); handleDelete('news', n.id); }} 
+                                                className="text-red-400 hover:text-red-600 p-2"
+                                                title="Hapus"
+                                            >
+                                                <Trash2 className="w-4 h-4"/>
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             ))}
@@ -629,20 +706,16 @@ const ContentManager = ({ user, role }) => {
                                         </td>
                                         <td className="p-4">
                                             <div className="flex gap-2 justify-center">
-                                                {/* <button 
-                                                    onClick={(e) => { e.stopPropagation(); handleClickNews(n); }}
-                                                    className="text-blue-400 hover:text-blue-600 p-1"
-                                                    title="Edit"
-                                                >
-                                                    <Edit2 className="w-4 h-4"/>
-                                                </button> */}
-                                                <button 
-                                                    onClick={(e) => { e.stopPropagation(); handleDelete('news', n.id); }} 
-                                                    className="text-red-400 hover:text-red-600 p-1"
-                                                    title="Hapus"
-                                                >
-                                                    <Trash2 className="w-4 h-4"/>
-                                                </button>
+                                                {/* Tombol hapus hanya muncul jika punya akses */}
+                                                {canEditNews(n) && (
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); handleDelete('news', n.id); }} 
+                                                        className="text-red-400 hover:text-red-600 p-1"
+                                                        title="Hapus"
+                                                    >
+                                                        <Trash2 className="w-4 h-4"/>
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
