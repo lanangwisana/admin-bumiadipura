@@ -1,5 +1,5 @@
 // App ID for Firestore collections
-export const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'bumi-adipura-5abd8';
+export const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'bumi-adipura-8ed0a';
 
 // Assets
 export const LOGO_URL = "https://lh3.googleusercontent.com/d/1oPheVvQCJmnBBxqfBp1Ev9iHfebaOSvb";
