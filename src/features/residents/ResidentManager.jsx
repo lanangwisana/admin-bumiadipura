@@ -231,14 +231,44 @@ const ResidentManager = ({ user }) => {
                                 {/* Pekerjaan */}
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                                        Pekerjaan <span className="text-slate-400 font-normal normal-case">(Opsional)</span>
+                                        Pekerjaan <span className="text-red-500">*</span>
                                     </label>
-                                    <input 
-                                        className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none" 
-                                        placeholder="Pekerjaan" 
-                                        value={formData.job} 
-                                        onChange={e => setFormData({...formData, job: e.target.value})}
-                                    />
+                                    <select
+                                        className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                                        value={['Wiraswasta', 'PNS', 'TNI/Polri', 'Karyawan Swasta', 'Guru/Dosen', 'Dokter', 'Mahasiswa', 'Pelajar', 'Ibu Rumah Tangga', 'Pensiunan', 'Tidak Bekerja'].includes(formData.job) ? formData.job : (formData.job === '' ? '' : '_CUSTOM_')}
+                                        onChange={e => {
+                                            if (e.target.value === '_CUSTOM_') {
+                                                setFormData({...formData, job: ' '});
+                                            } else {
+                                                setFormData({...formData, job: e.target.value});
+                                            }
+                                        }}
+                                        required
+                                    >
+                                        <option value="">-- Pilih Pekerjaan --</option>
+                                        <option value="Wiraswasta">Wiraswasta</option>
+                                        <option value="PNS">PNS</option>
+                                        <option value="TNI/Polri">TNI/Polri</option>
+                                        <option value="Karyawan Swasta">Karyawan Swasta</option>
+                                        <option value="Guru/Dosen">Guru/Dosen</option>
+                                        <option value="Dokter">Dokter</option>
+                                        <option value="Mahasiswa">Mahasiswa</option>
+                                        <option value="Pelajar">Pelajar</option>
+                                        <option value="Ibu Rumah Tangga">Ibu Rumah Tangga</option>
+                                        <option value="Pensiunan">Pensiunan</option>
+                                        <option value="Tidak Bekerja">Tidak Bekerja</option>
+                                        <option value="_CUSTOM_">Lainnya</option>
+                                    </select>
+                                    {/* Show text input if 'Lainnya' selected or custom value */}
+                                    {formData.job !== '' && !['Wiraswasta', 'PNS', 'TNI/Polri', 'Karyawan Swasta', 'Guru/Dosen', 'Dokter', 'Mahasiswa', 'Pelajar', 'Ibu Rumah Tangga', 'Pensiunan', 'Tidak Bekerja'].includes(formData.job) && (
+                                        <input 
+                                            className="w-full p-3 border border-slate-200 rounded-xl bg-white text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none mt-2" 
+                                            placeholder="Tulis pekerjaan..." 
+                                            value={formData.job.trim()} 
+                                            onChange={e => setFormData({...formData, job: e.target.value || ' '})}
+                                            required
+                                        />
+                                    )}
                                 </div>
                             </div>
 
