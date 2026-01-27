@@ -231,7 +231,7 @@ const ResidentManager = ({ user }) => {
                                 {/* Pekerjaan */}
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                                        Pekerjaan
+                                        Pekerjaan <span className="text-slate-400 font-normal normal-case">(Opsional)</span>
                                     </label>
                                     <input 
                                         className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none" 

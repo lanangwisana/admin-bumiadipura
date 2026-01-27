@@ -52,10 +52,19 @@ const DashboardOverview = ({ user, role }) => {
             (s) => setStats(prev => ({...prev, openReports: s.size}))
         );
         
-        // Recent Reports - Max 3, ordered by date desc
+        // Recent Reports - Max 5 (then filter client-side for OPEN & IN_PROGRESS)
         const unsubList = onSnapshot(
-            query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'reports'), orderBy('createdAt', 'desc'), limit(3)), 
-            (s) => setRecentReports(s.docs.map(d => ({id: d.id, ...d.data()})))
+            query(
+                collection(db, 'artifacts', APP_ID, 'public', 'data', 'reports'), 
+                orderBy('createdAt', 'desc'), 
+                limit(10)
+            ), 
+            (s) => {
+                // Filter client-side to exclude DONE status
+                const allReports = s.docs.map(d => ({id: d.id, ...d.data()}));
+                const activeReports = allReports.filter(r => r.status !== 'DONE').slice(0, 3);
+                setRecentReports(activeReports);
+            }
         );
         
         return () => { 
@@ -78,7 +87,8 @@ const DashboardOverview = ({ user, role }) => {
     // Send Broadcast to news collection
     const sendBroadcast = async (data) => {
         await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'news'), {
-            ...data,
+            title: data.title,
+            content: data.message, // Map 'message' from modal to 'content' for consistency
             cat: 'Pengumuman',
             date: new Date().toLocaleDateString('id-ID'),
             sender: role.label,

@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { AlertTriangle, FileCheck } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { AlertTriangle, FileCheck, Filter, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import { collection, onSnapshot, query, orderBy, updateDoc, doc } from 'firebase/firestore';
 import { db, APP_ID } from '../../config';
 import { formatDate } from '../../utils';
 
 const ReportPermitManager = ({ user }) => {
     const [activeTab, setActiveTab] = useState('reports');
+    const [statusFilter, setStatusFilter] = useState('active'); // 'all' | 'active' | 'done'
     const [data, setData] = useState([]);
 
     useEffect(() => {
@@ -18,15 +19,68 @@ const ReportPermitManager = ({ user }) => {
         return () => unsub();
     }, [user, activeTab]);
 
+    // Filter data based on statusFilter
+    const filteredData = useMemo(() => {
+        if (statusFilter === 'all') return data;
+        if (statusFilter === 'active') {
+            return data.filter(item => 
+                item.status === 'OPEN' || 
+                item.status === 'IN_PROGRESS' || 
+                item.status === 'PENDING'
+            );
+        }
+        if (statusFilter === 'done') {
+            return data.filter(item => 
+                item.status === 'DONE' || 
+                item.status === 'APPROVED' || 
+                item.status === 'REJECTED'
+            );
+        }
+        return data;
+    }, [data, statusFilter]);
+
     const updateStatus = async (id, status) => { 
         const colName = activeTab === 'reports' ? 'reports' : 'permits';
         await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', colName, id), { status }); 
     };
 
+    // Get status counts for badges
+    const statusCounts = useMemo(() => ({
+        all: data.length,
+        active: data.filter(item => 
+            item.status === 'OPEN' || 
+            item.status === 'IN_PROGRESS' || 
+            item.status === 'PENDING'
+        ).length,
+        done: data.filter(item => 
+            item.status === 'DONE' || 
+            item.status === 'APPROVED' || 
+            item.status === 'REJECTED'
+        ).length
+    }), [data]);
+
+    // Get status badge styling
+    const getStatusBadge = (status) => {
+        switch(status) {
+            case 'OPEN':
+            case 'PENDING':
+                return { bg: 'bg-red-100', text: 'text-red-700', icon: AlertCircle, label: status === 'OPEN' ? 'Menunggu' : 'Pending' };
+            case 'IN_PROGRESS':
+                return { bg: 'bg-yellow-100', text: 'text-yellow-700', icon: Clock, label: 'Diproses' };
+            case 'DONE':
+            case 'APPROVED':
+                return { bg: 'bg-green-100', text: 'text-green-700', icon: CheckCircle, label: status === 'DONE' ? 'Selesai' : 'Disetujui' };
+            case 'REJECTED':
+                return { bg: 'bg-gray-100', text: 'text-gray-700', icon: AlertCircle, label: 'Ditolak' };
+            default:
+                return { bg: 'bg-gray-100', text: 'text-gray-700', icon: AlertCircle, label: status };
+        }
+    };
+
     return (
         <div className="space-y-6 animate-fade-in">
             {/* Header */}
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
                 <h2 className="text-2xl font-bold text-slate-800">Pusat Layanan Warga</h2>
                 <div className="flex gap-2 bg-slate-100 p-1 rounded-xl">
                     <button 
@@ -48,98 +102,177 @@ const ReportPermitManager = ({ user }) => {
                 </div>
             </div>
 
+            {/* Status Filter Tabs */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                    <Filter className="w-4 h-4 text-slate-500"/>
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Filter Status</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    <button 
+                        onClick={() => setStatusFilter('all')} 
+                        className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
+                            statusFilter === 'all' 
+                                ? 'bg-slate-800 text-white shadow-lg' 
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                    >
+                        Semua
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            statusFilter === 'all' ? 'bg-white/20' : 'bg-slate-200'
+                        }`}>
+                            {statusCounts.all}
+                        </span>
+                    </button>
+                    <button 
+                        onClick={() => setStatusFilter('active')} 
+                        className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
+                            statusFilter === 'active' 
+                                ? 'bg-orange-500 text-white shadow-lg shadow-orange-200' 
+                                : 'bg-orange-50 text-orange-600 hover:bg-orange-100'
+                        }`}
+                    >
+                        <Clock className="w-4 h-4"/>
+                        Aktif
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            statusFilter === 'active' ? 'bg-white/20' : 'bg-orange-100'
+                        }`}>
+                            {statusCounts.active}
+                        </span>
+                    </button>
+                    <button 
+                        onClick={() => setStatusFilter('done')} 
+                        className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
+                            statusFilter === 'done' 
+                                ? 'bg-green-500 text-white shadow-lg shadow-green-200' 
+                                : 'bg-green-50 text-green-600 hover:bg-green-100'
+                        }`}
+                    >
+                        <CheckCircle className="w-4 h-4"/>
+                        Selesai
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            statusFilter === 'done' ? 'bg-white/20' : 'bg-green-100'
+                        }`}>
+                            {statusCounts.done}
+                        </span>
+                    </button>
+                </div>
+            </div>
+
             {/* Items List */}
             <div className="grid gap-4">
-                {data.map(item => (
-                    <div 
-                        key={item.id} 
-                        className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4 items-start md:items-center"
-                    >
-                        {/* Status Icon */}
-                        <div className={`p-3 rounded-full ${
-                            item.status === 'OPEN' || item.status === 'PENDING' 
-                                ? 'bg-red-100 text-red-600'
-                                : item.status === 'IN_PROGRESS' 
-                                    ? 'bg-yellow-100 text-yellow-600'
-                                    : 'bg-green-100 text-green-600'
-                        }`}>
-                            {activeTab === 'reports' 
-                                ? <AlertTriangle className="w-6 h-6"/> 
-                                : <FileCheck className="w-6 h-6"/>
-                            }
-                        </div>
+                {filteredData.length === 0 ? (
+                    <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 text-center">
+                        <p className="text-slate-400 italic">
+                            {statusFilter === 'done' 
+                                ? 'Belum ada laporan yang selesai.'
+                                : statusFilter === 'active'
+                                    ? 'Tidak ada laporan aktif.'
+                                    : 'Belum ada data.'}
+                        </p>
+                    </div>
+                ) : (
+                    filteredData.map(item => {
+                        const statusBadge = getStatusBadge(item.status);
+                        const StatusIcon = statusBadge.icon;
                         
-                        {/* Content */}
-                        <div className="flex-1">
-                            <div className="flex gap-2 mb-1">
-                                <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded font-bold text-slate-500">
-                                    {item.status}
-                                </span>
-                                <span className="text-xs text-slate-400">{formatDate(item.createdAt)}</span>
-                            </div>
-                            <h3 className="font-bold text-slate-800">
-                                {activeTab === 'reports' ? item.category : item.type}
-                            </h3>
-                            <p className="text-sm text-slate-600">{item.description}</p>
-                            <p className="text-xs text-slate-400 mt-1 font-mono">
-                                Warga: {item.userName} ({item.userUnit})
-                            </p>
-                            {item.isBlockingRoad && (
-                                <span className="text-[10px] text-red-600 font-bold bg-red-50 px-2 rounded mt-1 inline-block">
-                                    ⚠️ Menutup Jalan
-                                </span>
-                            )}
-                        </div>
-                        
-                        {/* Action Buttons */}
-                        <div className="flex gap-2">
-                            {activeTab === 'reports' ? (
-                                <>
-                                    {item.status !== 'IN_PROGRESS' && item.status !== 'DONE' && (
-                                        <button 
-                                            onClick={() => updateStatus(item.id, 'IN_PROGRESS')} 
-                                            className="px-3 py-1.5 bg-yellow-100 text-yellow-700 rounded text-xs font-bold hover:bg-yellow-200"
-                                        >
-                                            Proses
-                                        </button>
+                        return (
+                            <div 
+                                key={item.id} 
+                                className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4 items-start md:items-center"
+                            >
+                                {/* Status Icon */}
+                                <div className={`p-3 rounded-full ${statusBadge.bg} ${statusBadge.text}`}>
+                                    {activeTab === 'reports' 
+                                        ? <AlertTriangle className="w-6 h-6"/> 
+                                        : <FileCheck className="w-6 h-6"/>
+                                    }
+                                </div>
+                                
+                                {/* Content */}
+                                <div className="flex-1">
+                                    <div className="flex flex-wrap gap-2 mb-1">
+                                        <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${statusBadge.bg} ${statusBadge.text} flex items-center gap-1`}>
+                                            <StatusIcon className="w-3 h-3"/>
+                                            {statusBadge.label}
+                                        </span>
+                                        <span className="text-xs text-slate-400">{formatDate(item.createdAt)}</span>
+                                    </div>
+                                    <h3 className="font-bold text-slate-800">
+                                        {activeTab === 'reports' ? item.category : item.type}
+                                    </h3>
+                                    <p className="text-sm text-slate-600">{item.description}</p>
+                                    <p className="text-xs text-slate-400 mt-1 font-mono">
+                                        Warga: {item.userName} ({item.userUnit})
+                                    </p>
+                                    {item.isBlockingRoad && (
+                                        <span className="text-[10px] text-red-600 font-bold bg-red-50 px-2 rounded mt-1 inline-block">
+                                            ⚠️ Menutup Jalan
+                                        </span>
                                     )}
-                                    {item.status !== 'DONE' && (
-                                        <button 
-                                            onClick={() => updateStatus(item.id, 'DONE')} 
-                                            className="px-3 py-1.5 bg-green-100 text-green-700 rounded text-xs font-bold hover:bg-green-200"
-                                        >
-                                            Selesai
-                                        </button>
-                                    )}
-                                </>
-                            ) : (
-                                <>
-                                    {item.status === 'PENDING' && (
+                                </div>
+                                
+                                {/* Action Buttons */}
+                                <div className="flex gap-2">
+                                    {activeTab === 'reports' ? (
                                         <>
-                                            <button 
-                                                onClick={() => updateStatus(item.id, 'REJECTED')} 
-                                                className="px-3 py-1.5 bg-red-100 text-red-700 rounded text-xs font-bold hover:bg-red-200"
-                                            >
-                                                Tolak
-                                            </button>
-                                            <button 
-                                                onClick={() => updateStatus(item.id, 'APPROVED')} 
-                                                className="px-3 py-1.5 bg-green-100 text-green-700 rounded text-xs font-bold hover:bg-green-200"
-                                            >
-                                                Setujui
-                                            </button>
+                                            {item.status !== 'IN_PROGRESS' && item.status !== 'DONE' && (
+                                                <button 
+                                                    onClick={() => updateStatus(item.id, 'IN_PROGRESS')} 
+                                                    className="px-3 py-1.5 bg-yellow-100 text-yellow-700 rounded-lg text-xs font-bold hover:bg-yellow-200 transition-colors"
+                                                >
+                                                    Proses
+                                                </button>
+                                            )}
+                                            {item.status !== 'DONE' && (
+                                                <button 
+                                                    onClick={() => updateStatus(item.id, 'DONE')} 
+                                                    className="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-bold hover:bg-green-200 transition-colors"
+                                                >
+                                                    Selesai
+                                                </button>
+                                            )}
+                                            {item.status === 'DONE' && (
+                                                <span className="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-bold flex items-center gap-1">
+                                                    <CheckCircle className="w-3 h-3"/> Selesai
+                                                </span>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <>
+                                            {item.status === 'PENDING' && (
+                                                <>
+                                                    <button 
+                                                        onClick={() => updateStatus(item.id, 'REJECTED')} 
+                                                        className="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-xs font-bold hover:bg-red-200 transition-colors"
+                                                    >
+                                                        Tolak
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => updateStatus(item.id, 'APPROVED')} 
+                                                        className="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-bold hover:bg-green-200 transition-colors"
+                                                    >
+                                                        Setujui
+                                                    </button>
+                                                </>
+                                            )}
+                                            {item.status === 'APPROVED' && (
+                                                <span className="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-bold flex items-center gap-1">
+                                                    <CheckCircle className="w-3 h-3"/> Disetujui
+                                                </span>
+                                            )}
+                                            {item.status === 'REJECTED' && (
+                                                <span className="px-3 py-1.5 bg-gray-100 text-gray-500 rounded-lg text-xs font-bold">
+                                                    Ditolak
+                                                </span>
+                                            )}
                                         </>
                                     )}
-                                    {item.status === 'APPROVED' && (
-                                        <button className="px-3 py-1.5 bg-gray-100 text-gray-500 rounded text-xs font-bold cursor-default">
-                                            Disetujui
-                                        </button>
-                                    )}
-                                </>
-                            )}
-                        </div>
-                    </div>
-                ))}
+                                </div>
+                            </div>
+                        );
+                    })
+                )}
             </div>
         </div>
     );

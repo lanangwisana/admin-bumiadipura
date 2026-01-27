@@ -12,7 +12,13 @@ const firebaseConfig = {
   measurementId: "G-1QWESVPHGR"
 };
 
+// Main app for general use
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+
+// Secondary app for creating new users without affecting current session
+const secondaryApp = initializeApp(firebaseConfig, 'SecondaryApp');
+export const secondaryAuth = getAuth(secondaryApp);
+
 export default app;

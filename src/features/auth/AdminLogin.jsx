@@ -4,7 +4,7 @@ import { Lock, LogIn, Loader2, Mail, AlertCircle, ShieldCheck } from 'lucide-rea
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { collection, getDocs, query, where, addDoc } from 'firebase/firestore';
 import { db, auth, APP_ID, LOGO_URL } from '../../config';
-import { seedDatabase } from '../../services';
+
 
 /**
  * Secure Admin Login Component
@@ -121,8 +121,6 @@ const AdminLogin = ({ onLogin }) => {
                 : `Ketua RT ${rtNumber}`;
             const scope = roleType === 'RW' ? 'GLOBAL' : `RT${rtNumber}`;
 
-            // Trigger database seed on successful login
-            seedDatabase();
 
             // Return role data to parent
             onLogin({ 
