@@ -55,6 +55,10 @@ const FinanceManager = ({ role, user }) => {
         alert("Nominal harus lebih dari 0");
         return;
       }
+      if (!formData.description.trim()) {
+        alert("Keterangan wajib diisi");
+        return;
+      }
 
       const baseData = {
         ...formData,
@@ -77,6 +81,7 @@ const FinanceManager = ({ role, user }) => {
           ),
           baseData,
         );
+        alert("Transaksi berhasil diperbarui");
       } else {
         await addDoc(
           collection(db, "artifacts", APP_ID, "public", "data", "transactions"),
@@ -85,6 +90,7 @@ const FinanceManager = ({ role, user }) => {
             createdAt: new Date().toISOString(),
           },
         );
+        alert("Transaksi berhasil ditambahkan");
       }
 
       setIsModalOpen(false);
@@ -127,6 +133,19 @@ const FinanceManager = ({ role, user }) => {
       console.error(err);
       alert("Gagal hapus transaksi");
     }
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setIsEditMode(false);
+    setEditTransactionId(null);
+    setFormData({
+      type: "Pemasukan",
+      category: "IPL",
+      amount: "",
+      description: "",
+      date: new Date().toISOString().split("T")[0],
+    });
   };
 
   //    Generate Billing IPL
@@ -212,6 +231,14 @@ const FinanceManager = ({ role, user }) => {
     .reduce((sum, t) => sum + t.amount, 0);
   const balance = totalIncome - totalExpense;
 
+  const categoryOptions = [
+    "IPL",
+    "Sumbangan",
+    "Operasional",
+    "Perbaikan",
+    "Lainnya",
+  ];
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
@@ -267,8 +294,16 @@ const FinanceManager = ({ role, user }) => {
           <div className="flex justify-end mb-2">
             <button
               onClick={() => {
-                setIsModalOpen(true);
                 setIsEditMode(false);
+                setEditTransactionId(null);
+                setFormData({
+                  type: "Pemasukan",
+                  category: "IPL",
+                  amount: "",
+                  description: "",
+                  date: new Date().toISOString().split("T")[0],
+                });
+                setIsModalOpen(true);
               }}
               className="bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold"
             >
@@ -327,15 +362,36 @@ const FinanceManager = ({ role, user }) => {
                   {isEditMode ? "Edit" : "Input"} Transaksi
                 </h3>
                 <form onSubmit={handleSubmit} className="space-y-4">
+                  {isEditMode ? (
+                    <input
+                      className="w-full p-2 border rounded bg-slate-100 text-slate-500"
+                      value={formData.type}
+                      readOnly
+                    />
+                  ) : (
+                    <select
+                      className="w-full p-2 border rounded"
+                      value={formData.type}
+                      onChange={(e) =>
+                        setFormData({ ...formData, type: e.target.value })
+                      }
+                    >
+                      <option>Pemasukan</option>
+                      <option>Pengeluaran</option>
+                    </select>
+                  )}
                   <select
                     className="w-full p-2 border rounded"
-                    value={formData.type}
+                    value={formData.category}
                     onChange={(e) =>
-                      setFormData({ ...formData, type: e.target.value })
+                      setFormData({ ...formData, category: e.target.value })
                     }
                   >
-                    <option>Pemasukan</option>
-                    <option>Pengeluaran</option>
+                    {categoryOptions.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
                   </select>
                   <input
                     className="w-full p-2 border rounded"
@@ -354,15 +410,24 @@ const FinanceManager = ({ role, user }) => {
                     onChange={(e) =>
                       setFormData({ ...formData, description: e.target.value })
                     }
+                    required
                   />
-                  <input
-                    className="w-full p-2 border rounded"
-                    type="date"
-                    value={formData.date}
-                    onChange={(e) =>
-                      setFormData({ ...formData, date: e.target.value })
-                    }
-                  />
+                  {isEditMode ? (
+                    <input
+                      className="w-full p-2 border rounded bg-slate-100 text-slate-500"
+                      value={formData.date}
+                      readOnly
+                    />
+                  ) : (
+                    <input
+                      type="date"
+                      className="w-full p-2 border rounded"
+                      value={formData.date}
+                      onChange={(e) =>
+                        setFormData({ ...formData, date: e.target.value })
+                      }
+                    />
+                  )}
                   <button
                     type="submit"
                     className="w-full bg-emerald-600 text-white py-2 rounded font-bold"
@@ -372,7 +437,7 @@ const FinanceManager = ({ role, user }) => {
 
                   <button
                     type="button"
-                    onClick={() => setIsModalOpen(false)}
+                    onClick={closeModal}
                     className="w-full border py-2 rounded font-bold text-slate-500"
                   >
                     Batal
@@ -437,36 +502,39 @@ const FinanceManager = ({ role, user }) => {
                         Rp {b.nominal.toLocaleString()}
                       </td>
                       <td className="p-4 text-center">
-                        <span
-                          className={`px-3 py-1 rounded-full text-sm font-bold ${
+                        <div
+                          className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold ${
                             b.status === "PAID"
                               ? "bg-green-100 text-green-700"
                               : "bg-red-100 text-red-700"
                           }`}
                         >
-                          {b.status === "PAID" ? "Lunas" : "Belum Lunas"}
-                        </span>
+                          {b.status === "PAID" ? (
+                            <CheckCircle className="w-4 h-4" />
+                          ) : (
+                            <XCircle className="w-4 h-4" />
+                          )}
+                          <span>
+                            {b.status === "PAID" ? "Lunas" : "Belum Lunas"}
+                          </span>
+                        </div>
                       </td>
                       <td className="p-4 text-center">
-                        <div className="flex justify-center">
-                          {b.status === "UNPAID" ? (
-                            <button
-                              onClick={() => toggleBillingStatus(b)}
-                              className="flex items-center gap-1 text-green-600 hover:text-green-800 text-xs font-semibold"
-                            >
-                              <CheckCircle className="w-4 h-4" />
-                              <span>Tandai Lunas</span>
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => toggleBillingStatus(b)}
-                              className="flex items-center gap-1 text-red-500 hover:text-red-700 text-xs font-semibold"
-                            >
-                              <XCircle className="w-4 h-4" />
-                              <span>Batalkan</span>
-                            </button>
-                          )}
-                        </div>
+                        {b.status === "UNPAID" ? (
+                          <button
+                            onClick={() => toggleBillingStatus(b)}
+                            className="px-4 py-2 rounded-lg border border-green-400 bg-green-100 text-green-700 text-xs font-bold hover:bg-green-200 transition-colors"
+                          >
+                            Tandai Lunas
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => toggleBillingStatus(b)}
+                            className="px-4 py-2 rounded-lg border border-red-300 text-red-600 text-xs font-bold hover:bg-red-50 transition"
+                          >
+                            Batalkan Lunas
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
