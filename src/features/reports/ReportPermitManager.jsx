@@ -24,43 +24,69 @@ const ReportPermitManager = ({ user }) => {
   }, [user, activeTab]);
 
   // Filter data based on statusFilter
- const filteredData = useMemo(() => {
-  let result = [];
-  if (statusFilter === "all") result = [...data];
-  else if (statusFilter === "active") {
-    result = data.filter(
-      (item) =>
-        item.status === "OPEN" ||
-        item.status === "IN_PROGRESS" ||
-        item.status === "PENDING",
-    );
-  } else if (statusFilter === "done") {
-    result = data.filter(
-      (item) =>
-        item.status === "DONE" ||
-        item.status === "APPROVED" ||
-        item.status === "REJECTED",
-    );
-  }
+  const filteredData = useMemo(() => {
+    let result = [];
+    if (statusFilter === "all") result = [...data];
+    else if (statusFilter === "active") {
+      result = data.filter(
+        (item) =>
+          item.status === "OPEN" ||
+          item.status === "IN_PROGRESS" ||
+          item.status === "PENDING",
+      );
+    } else if (statusFilter === "done") {
+      result = data.filter(
+        (item) =>
+          item.status === "DONE" ||
+          item.status === "APPROVED" ||
+          item.status === "REJECTED",
+      );
+    }
 
-  // Pastikan urut dari terbaru ke terlama
-  return result.sort((a, b) => {
-    const dateA = a.createdAt.seconds ? a.createdAt.seconds : new Date(a.createdAt).getTime() / 1000;
-    const dateB = b.createdAt.seconds ? b.createdAt.seconds : new Date(b.createdAt).getTime() / 1000;
-    return dateB - dateA; // terbaru dulu
-  });
-}, [data, statusFilter]);
+    return result.sort((a, b) => {
+      const dateA = a.createdAt.seconds
+        ? a.createdAt.seconds
+        : new Date(a.createdAt).getTime() / 1000;
+      const dateB = b.createdAt.seconds
+        ? b.createdAt.seconds
+        : new Date(b.createdAt).getTime() / 1000;
+      return dateB - dateA;
+    });
+  }, [data, statusFilter]);
 
   const updateStatus = async (id, status, reason = "") => {
-    const colName = activeTab === "reports" ? "reports" : "permits";
-    const payload = { status };
-    if (status === "REJECTED" && reason) {
-      payload.rejectReason = reason;
+    const confirmText =
+      status === "IN_PROGRESS"
+        ? "Mulai proses laporan ini?"
+        : status === "DONE"
+          ? "Tandai laporan ini sebagai selesai?"
+          : status === "APPROVED"
+            ? "Setujui permohonan ini?"
+            : status === "REJECTED"
+              ? "Tolak permohonan ini?"
+              : "Lanjutkan aksi ini?";
+
+    const ok = window.confirm(confirmText);
+    if (!ok) return;
+
+    try {
+      const colName = activeTab === "reports" ? "reports" : "permits";
+      const payload = { status };
+
+      if (status === "REJECTED" && reason) {
+        payload.rejectReason = reason;
+      }
+
+      await updateDoc(
+        doc(db, "artifacts", APP_ID, "public", "data", colName, id),
+        payload,
+      );
+
+      window.alert("Berhasil memperbarui status");
+    } catch (err) {
+      console.error(err);
+      window.alert("Gagal memperbarui status");
     }
-    await updateDoc(
-      doc(db, "artifacts", APP_ID, "public", "data", colName, id),
-      payload,
-    );
   };
 
   // Get status counts for badges
@@ -348,120 +374,119 @@ const ReportPermitManager = ({ user }) => {
 
                 {/* Action Buttons */}
                 <div className="flex gap-2">
-                  {activeTab === "reports" ? (
+                  {activeTab === "reports" && (
                     <>
-                      {item.status !== "IN_PROGRESS" &&
-                        item.status !== "DONE" && (
-                          <button
-                            onClick={() => updateStatus(item.id, "IN_PROGRESS")}
-                            className="px-3 py-1.5 bg-yellow-100 text-yellow-700 rounded-lg text-xs font-bold hover:bg-yellow-200 transition-colors"
-                          >
-                            Proses
-                          </button>
-                        )}
-                      {item.status !== "DONE" && (
+                      {item.status === "OPEN" && (
+                        <button
+                          onClick={() => updateStatus(item.id, "IN_PROGRESS")}
+                          className="px-3 py-1.5 bg-yellow-100 text-yellow-700 rounded-lg text-xs font-bold hover:bg-yellow-200 transition-colors"
+                        >
+                          Mulai Proses
+                        </button>
+                      )}
+
+                      {item.status === "IN_PROGRESS" && (
                         <button
                           onClick={() => updateStatus(item.id, "DONE")}
                           className="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-bold hover:bg-green-200 transition-colors"
                         >
-                          Selesai
+                          Tandai Selesai
                         </button>
                       )}
                       {item.status === "DONE" && (
-                        <span className="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-bold flex items-center gap-1">
-                          <CheckCircle className="w-3 h-3" /> Selesai
-                        </span>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      {activeTab === "permits" &&
-                        (item.status === "PENDING" ||
-                          item.status === "OPEN") && (
-                          <div className="flex flex-col gap-2">
-                            {!showRejectInput[item.id] ? (
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={() =>
-                                    setShowRejectInput((prev) => ({
-                                      ...prev,
-                                      [item.id]: true,
-                                    }))
-                                  }
-                                  className="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-xs font-bold hover:bg-red-200 transition-colors"
-                                >
-                                  Tolak
-                                </button>
-                                <button
-                                  onClick={() =>
-                                    updateStatus(item.id, "APPROVED")
-                                  }
-                                  className="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-bold hover:bg-green-200 transition-colors"
-                                >
-                                  Setujui
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="flex gap-2">
-                                <input
-                                  type="text"
-                                  placeholder="Alasan penolakan (opsional)"
-                                  value={rejectReason[item.id] || ""}
-                                  onChange={(e) =>
-                                    setRejectReason((prev) => ({
-                                      ...prev,
-                                      [item.id]: e.target.value,
-                                    }))
-                                  }
-                                  className="px-3 py-1 rounded-lg border border-slate-300 text-xs"
-                                />
-                                <button
-                                  onClick={() => {
-                                    updateStatus(
-                                      item.id,
-                                      "REJECTED",
-                                      rejectReason[item.id],
-                                    );
-                                    setShowRejectInput((prev) => ({
-                                      ...prev,
-                                      [item.id]: false,
-                                    }));
-                                    setRejectReason((prev) => ({
-                                      ...prev,
-                                      [item.id]: "",
-                                    }));
-                                  }}
-                                  className="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-xs font-bold hover:bg-red-200 transition-colors"
-                                >
-                                  Konfirmasi Tolak
-                                </button>
-                                <button
-                                  onClick={() =>
-                                    setShowRejectInput((prev) => ({
-                                      ...prev,
-                                      [item.id]: false,
-                                    }))
-                                  }
-                                  className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200 transition-colors"
-                                >
-                                  Batal
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      {item.status === "APPROVED" && (
-                        <span className="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-bold flex items-center gap-1">
-                          <CheckCircle className="w-3 h-3" /> Disetujui
-                        </span>
-                      )}
-                      {item.status === "REJECTED" && (
-                        <span className="px-3 py-1.5 bg-gray-100 text-gray-500 rounded-lg text-xs font-bold">
-                          Ditolak
-                        </span>
+                        <div className="px-3 py-1.5 bg-gray-100 text-gray-500 rounded-lg text-xs font-bold">
+                          <span>Selesai</span>
+                        </div>
                       )}
                     </>
                   )}
+                  <>
+                    {activeTab === "permits" &&
+                      (item.status === "PENDING" || item.status === "OPEN") && (
+                        <div className="flex flex-col gap-2">
+                          {!showRejectInput[item.id] ? (
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() =>
+                                  setShowRejectInput((prev) => ({
+                                    ...prev,
+                                    [item.id]: true,
+                                  }))
+                                }
+                                className="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-xs font-bold hover:bg-red-200 transition-colors"
+                              >
+                                Tolak
+                              </button>
+                              <button
+                                onClick={() =>
+                                  updateStatus(item.id, "APPROVED")
+                                }
+                                className="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-bold hover:bg-green-200 transition-colors"
+                              >
+                                Setujui
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                placeholder="Alasan penolakan (opsional)"
+                                value={rejectReason[item.id] || ""}
+                                onChange={(e) =>
+                                  setRejectReason((prev) => ({
+                                    ...prev,
+                                    [item.id]: e.target.value,
+                                  }))
+                                }
+                                className="px-3 py-1 rounded-lg border border-slate-300 text-xs
+             w-48 md:w-56"
+                              />
+                              <button
+                                onClick={() => {
+                                  updateStatus(
+                                    item.id,
+                                    "REJECTED",
+                                    rejectReason[item.id],
+                                  );
+                                  setShowRejectInput((prev) => ({
+                                    ...prev,
+                                    [item.id]: false,
+                                  }));
+                                  setRejectReason((prev) => ({
+                                    ...prev,
+                                    [item.id]: "",
+                                  }));
+                                }}
+                                className="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-xs font-bold hover:bg-red-200 transition-colors"
+                              >
+                                Konfirmasi Tolak
+                              </button>
+                              <button
+                                onClick={() =>
+                                  setShowRejectInput((prev) => ({
+                                    ...prev,
+                                    [item.id]: false,
+                                  }))
+                                }
+                                className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200 transition-colors"
+                              >
+                                Batal
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    {item.status === "APPROVED" && (
+                      <span className="px-3 py-1.5 bg-gray-100 text-gray-500 rounded-lg text-xs font-bold">
+                        Disetujui
+                      </span>
+                    )}
+                    {item.status === "REJECTED" && (
+                      <span className="px-3 py-1.5 bg-gray-100 text-gray-500 rounded-lg text-xs font-bold">
+                        Ditolak
+                      </span>
+                    )}
+                  </>
                 </div>
               </div>
             );
