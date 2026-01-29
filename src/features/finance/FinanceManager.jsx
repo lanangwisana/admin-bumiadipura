@@ -40,6 +40,7 @@ const FinanceManager = ({ role, user }) => {
       });
 
   //    Arus Kas: realtime fetch
+  //    Arus Kas: realtime fetch
   useEffect(() => {
     if (!user) return;
     const q = query(
@@ -47,10 +48,20 @@ const FinanceManager = ({ role, user }) => {
       orderBy("date", "desc"),
     );
     const unsub = onSnapshot(q, (snap) => {
-      setTransactions(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      let fetched = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      
+      // Filter Transactions by Scope
+      if (role?.type === 'RT') {
+          // RT only sees transactions created by them (scope === role.id)
+          // OR maybe they shouldn't see anything? Plan said "No Access / Read Only"
+          // Let's allow them to see their own "rt cash flow" if any
+          fetched = fetched.filter(t => t.scope === role.id);
+      }
+      
+      setTransactions(fetched);
     });
     return () => unsub();
-  }, [user]);
+  }, [user, role]);
 
   //    Billing: realtime fetch
   useEffect(() => {

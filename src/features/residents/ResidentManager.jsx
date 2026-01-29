@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { UserPlus, X, Trash2, Users, Search, AlertTriangle, Eye, Edit2, Phone, Briefcase, Home } from 'lucide-react';
+import { UserPlus, Plus, X, Trash2, Users, Search, AlertTriangle, Eye, Edit2, Phone, Briefcase, Home, Globe } from 'lucide-react';
 import { collection, onSnapshot, query, orderBy, addDoc, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { db, APP_ID } from '../../config';
 
@@ -24,21 +24,49 @@ const ResidentManager = ({ user }) => {
         family: [] 
     });
     const [familyTemp, setFamilyTemp] = useState({ name: '', relation: 'Istri' });
+    const [isGlobalSearch, setIsGlobalSearch] = useState(false); // New State
 
-    // Realtime listener for residents collection
+    // Realtime listener for residents collection with RBAC
     useEffect(() => {
         if (!user) return;
-        const unsub = onSnapshot(
-            query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'residents'), orderBy('unit')), 
-            (s) => setResidents(s.docs.map(d => ({id: d.id, ...d.data()}))),
-            (err) => console.log(err)
-        ); 
+        
+        const q = query(
+            collection(db, 'artifacts', APP_ID, 'public', 'data', 'residents'), 
+            orderBy('unit')
+        );
+
+        const unsub = onSnapshot(q, (snapshot) => {
+            let fetchedData = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
+            
+            // Client-side filtering for complex string matching
+            // This is safer for flexible "unit" formats (e.g. "A-01 RT01", "C-09 (RT 02)")
+            if (user.type === 'RT' && !isGlobalSearch) {
+                const rtCode = user.id; // e.g. "01"
+                fetchedData = fetchedData.filter(resident => {
+                    // Method 1: Check explicit RT field (New Standard)
+                    if (resident.rt) {
+                        return resident.rt === rtCode;
+                    }
+
+                    // Method 2: Fallback to string matching (Legacy Data)
+                    const unit = (resident.unit || '').toUpperCase();
+                    // Match "RT01", "RT 01", "RT.01", "RT. 01"
+                    return unit.includes(`RT${rtCode}`) || 
+                           unit.includes(`RT ${rtCode}`) || 
+                           unit.includes(`RT.${rtCode}`) ||
+                           unit.includes(`RT. ${rtCode}`); 
+                });
+            }
+            
+            setResidents(fetchedData);
+        }, (err) => console.log(err)); 
+        
         return () => unsub(); 
-    }, [user]);
+    }, [user, isGlobalSearch]);
 
     // Reset form data
     const resetForm = () => {
-        setFormData({ name: '', unit: '', phone: '', job: '', status: 'Tetap', family: [] });
+        setFormData({ name: '', unit: '', rt: '', phone: '', job: '', status: 'Tetap', family: [] });
         setFamilyTemp({ name: '', relation: 'Istri' });
         setIsEditMode(false);
         setEditingId(null);
@@ -47,18 +75,32 @@ const ResidentManager = ({ user }) => {
     // Open modal for create
     const openCreateModal = () => {
         resetForm();
+        // Pre-fill RT if user is RT
+        if (user?.type === 'RT') {
+            setFormData(prev => ({...prev, rt: user.id}));
+        }
         setIsModalOpen(true);
     };
 
     // Open modal for edit
     const openEditModal = (resident) => {
+        // Extract RT from string "A1/10 (RT 01)" -> "01" usually, or fallback to saved 'rt' field if we add it
+        // Ideally we should start saving 'rt' field separately.
+        // For legacy data, we might need to parse.
+        let rtValue = resident.rt || '';
+        if (!rtValue && resident.unit) {
+             const match = resident.unit.match(/\(RT (\d+)\)/);
+             if (match) rtValue = match[1];
+        }
+
         setFormData({
             name: resident.name || '',
             unit: resident.unit || '',
+            rt: rtValue, 
             phone: resident.phone || '',
             job: resident.job || '',
             status: resident.status || 'Tetap',
-            family: resident.family || []
+            family: Array.isArray(resident.family) ? resident.family : [] // Strict array check
         });
         setEditingId(resident.id);
         setIsEditMode(true);
@@ -69,16 +111,42 @@ const ResidentManager = ({ user }) => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
+            // Logic for Final Unit String
+            // Combine unit input "A1/10" with RT "01" -> "A1/10 (RT 01)"
+            const rtNum = user?.type === 'RT' ? user.id : formData.rt;
+            const pureUnit = formData.unit.replace(/ \(RT \d+\)$/, ''); // clean first
+            
+            // If user forgot to put RT in unit string, append it standardly
+            const finalUnit = `${pureUnit} (RT ${rtNum})`;
+            
+            // Auto-add pending family member if user forgot to click "+"
+            let finalFamily = [...(formData.family || [])];
+            if (familyTemp.name.trim()) {
+                finalFamily.push({
+                    name: familyTemp.name,
+                    relation: familyTemp.relation || 'Anak'
+                });
+                // Clear temp
+                setFamilyTemp({ name: '', relation: 'Anak' });
+            }
+
+            const payload = {
+                ...formData,
+                unit: finalUnit, // Display Unit string
+                rt: rtNum, // Explicit RT field for robust filtering
+                family: finalFamily
+            };
+
             if (isEditMode && editingId) {
                 // Update existing resident
                 await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'residents', editingId), {
-                    ...formData,
+                    ...payload,
                     updatedAt: new Date().toISOString()
                 });
             } else {
                 // Create new resident
                 await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'residents'), {
-                    ...formData,
+                    ...payload,
                     createdAt: new Date().toISOString()
                 });
             }
@@ -152,16 +220,36 @@ const ResidentManager = ({ user }) => {
                 </button>
             </div>
 
-            {/* Search Bar */}
-            <div className="relative">
-                <Search className="absolute left-4 top-3.5 w-5 h-5 text-slate-400"/>
-                <input 
-                    type="text"
-                    placeholder="Cari berdasarkan nama, unit, atau kontak..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-sm"
-                />
+            {/* Search Bar & Global Toggle */}
+            <div className="flex flex-col md:flex-row gap-4">
+                <div className="relative flex-1">
+                    <Search className="absolute left-4 top-3.5 w-5 h-5 text-slate-400"/>
+                    <input 
+                        type="text"
+                        placeholder="Cari berdasarkan nama, unit, atau kontak..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-12 pr-4 py-3 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-sm"
+                    />
+                </div>
+                
+                {/* Global Search Toggle for RT */}
+                {user?.type === 'RT' && (
+                    <button
+                        onClick={() => setIsGlobalSearch(!isGlobalSearch)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-all ${
+                            isGlobalSearch 
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-md ring-2 ring-blue-200' 
+                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                        }`}
+                    >
+                        <Globe className={`w-5 h-5 ${isGlobalSearch ? 'animate-pulse' : ''}`}/>
+                        <div className="text-left leading-tight">
+                            <span className="block text-xs font-bold uppercase tracking-wider">Mode Pencarian</span>
+                            <span className="font-bold text-sm">{isGlobalSearch ? 'Global (Semua RT)' : 'Wilayah Saya'}</span>
+                        </div>
+                    </button>
+                )}
             </div>
             
             {/* Modal Create/Edit Warga */}
@@ -185,56 +273,75 @@ const ResidentManager = ({ user }) => {
                             </button>
                         </div>
                         <form onSubmit={handleSubmit} className="space-y-4">
-                            {/* Nama Kepala Keluarga */}
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                                    Nama Kepala Keluarga
-                                </label>
-                                <input 
-                                    className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none" 
-                                    placeholder="Masukkan nama lengkap" 
-                                    value={formData.name} 
-                                    onChange={e => setFormData({...formData, name: e.target.value})} 
-                                    required
-                                />
-                            </div>
-
-                            {/* Unit/Blok */}
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                                    Unit / Blok
-                                </label>
-                                <input 
-                                    className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none" 
-                                    placeholder="Contoh: A1/18, B2/05" 
-                                    value={formData.unit} 
-                                    onChange={e => setFormData({...formData, unit: e.target.value})} 
-                                    required
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                {/* No. HP/WA */}
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                                        No. HP / WA
-                                    </label>
+                            
+                            {/* RT Selection Logic & Unit */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-bold text-slate-600">Wilayah RT</label>
+                                    {user?.type === 'RW' ? (
+                                        <select
+                                            required
+                                            value={formData.rt || ''}
+                                            onChange={(e) => setFormData({...formData, rt: e.target.value})}
+                                            className="w-full p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                                        >
+                                            <option value="">Pilih RT...</option>
+                                            {[...Array(10)].map((_, i) => {
+                                                const num = String(i + 1).padStart(2, '0');
+                                                return <option key={num} value={num}>RT {num}</option>;
+                                            })}
+                                        </select>
+                                    ) : (
+                                        <input 
+                                            type="text" 
+                                            value={`RT ${user?.id || ''}`} 
+                                            disabled 
+                                            className="w-full p-3 rounded-xl border border-slate-200 bg-slate-100 text-slate-500 font-bold"
+                                        />
+                                    )}
+                                </div>
+                                
+                                <div className="space-y-2">
+                                    <label className="text-sm font-bold text-slate-600">Unit / Blok Rumah</label>
                                     <input 
-                                        className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none" 
-                                        placeholder="08xxxxxxxxxx" 
-                                        value={formData.phone} 
-                                        onChange={e => setFormData({...formData, phone: e.target.value})} 
+                                        type="text" 
                                         required
+                                        placeholder="Contoh: A1/10"
+                                        value={formData.unit?.replace(/ \(RT \d+\)$/, '') || ''} 
+                                        onChange={(e) => setFormData({...formData, unit: e.target.value})}
+                                        className="w-full p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                    <p className="text-xs text-slate-400">Masukkan blok saja (misal: A1/10). Sistem otomatis label RT.</p>
+                                </div>
+                            </div>
+
+                            {/* Nama Kepala Keluarga */}
+                            <div className="space-y-2">
+                                <label className="text-sm font-bold text-slate-600">Nama Kepala Keluarga</label>
+                                <input 
+                                    type="text" 
+                                    required
+                                    value={formData.name}
+                                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                                    className="w-full p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-bold text-slate-600">No. WhatsApp</label>
+                                    <input 
+                                        type="text" 
+                                        required
+                                        value={formData.phone}
+                                        onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                                        className="w-full p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                     />
                                 </div>
-
-                                {/* Pekerjaan */}
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                                        Pekerjaan <span className="text-red-500">*</span>
-                                    </label>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-bold text-slate-600">Pekerjaan</label>
                                     <select
-                                        className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                                        className="w-full p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                                         value={['Wiraswasta', 'PNS', 'TNI/Polri', 'Karyawan Swasta', 'Guru/Dosen', 'Dokter', 'Mahasiswa', 'Pelajar', 'Ibu Rumah Tangga', 'Pensiunan', 'Tidak Bekerja'].includes(formData.job) ? formData.job : (formData.job === '' ? '' : '_CUSTOM_')}
                                         onChange={e => {
                                             if (e.target.value === '_CUSTOM_') {
@@ -243,7 +350,6 @@ const ResidentManager = ({ user }) => {
                                                 setFormData({...formData, job: e.target.value});
                                             }
                                         }}
-                                        required
                                     >
                                         <option value="">-- Pilih Pekerjaan --</option>
                                         <option value="Wiraswasta">Wiraswasta</option>
@@ -257,13 +363,13 @@ const ResidentManager = ({ user }) => {
                                         <option value="Ibu Rumah Tangga">Ibu Rumah Tangga</option>
                                         <option value="Pensiunan">Pensiunan</option>
                                         <option value="Tidak Bekerja">Tidak Bekerja</option>
-                                        <option value="_CUSTOM_">Lainnya</option>
+                                        <option value="_CUSTOM_">Lainnya (Isi Manual)</option>
                                     </select>
                                     {/* Show text input if 'Lainnya' selected or custom value */}
                                     {formData.job !== '' && !['Wiraswasta', 'PNS', 'TNI/Polri', 'Karyawan Swasta', 'Guru/Dosen', 'Dokter', 'Mahasiswa', 'Pelajar', 'Ibu Rumah Tangga', 'Pensiunan', 'Tidak Bekerja'].includes(formData.job) && (
                                         <input 
-                                            className="w-full p-3 border border-slate-200 rounded-xl bg-white text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none mt-2" 
-                                            placeholder="Tulis pekerjaan..." 
+                                            className="w-full p-3 border border-slate-200 rounded-xl bg-white text-sm focus:ring-2 focus:ring-blue-500 outline-none mt-2" 
+                                            placeholder="Tulis nama pekerjaan..." 
                                             value={formData.job.trim()} 
                                             onChange={e => setFormData({...formData, job: e.target.value || ' '})}
                                             required
@@ -271,87 +377,81 @@ const ResidentManager = ({ user }) => {
                                     )}
                                 </div>
                             </div>
-
-                            {/* Status */}
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                                    Status Hunian
-                                </label>
-                                <select 
-                                    className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none" 
-                                    value={formData.status} 
-                                    onChange={e => setFormData({...formData, status: e.target.value})}
+                            
+                             <div className="space-y-2">
+                                <label className="text-sm font-bold text-slate-600">Status Tempat Tinggal</label>
+                                <select
+                                    value={formData.status}
+                                    onChange={(e) => setFormData({...formData, status: e.target.value})}
+                                    className="w-full p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                                 >
-                                    <option value="Tetap">Tetap</option>
-                                    <option value="Kontrak">Kontrak</option>
-                                    <option value="Kos">Kos</option>
+                                    <option value="Tetap">Warga Tetap</option>
+                                    <option value="Kontrak">Ngontrak / Sewa</option>
+                                    <option value="Kost">Kost</option>
                                 </select>
                             </div>
-                            
-                            {/* Anggota Keluarga */}
-                            <div className="border-t border-slate-200 pt-4">
-                                <div className="flex items-center gap-2 mb-3">
-                                    <Users className="w-4 h-4 text-slate-500"/>
-                                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Anggota Keluarga</p>
-                                </div>
+
+                            {/* Family Members Section */}
+                            <div className="border-t border-slate-100 pt-4">
+                                <label className="text-sm font-bold text-slate-600 mb-2 block">Anggota Keluarga</label>
+                                
                                 <div className="flex gap-2 mb-3">
                                     <input 
-                                        className="flex-1 p-2.5 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:ring-2 focus:ring-emerald-500 outline-none" 
-                                        placeholder="Nama anggota keluarga" 
-                                        value={familyTemp.name} 
-                                        onChange={e => setFamilyTemp({...familyTemp, name: e.target.value})}
+                                        type="text" 
+                                        placeholder="Nama Anggota"
+                                        value={familyTemp.name}
+                                        onChange={(e) => setFamilyTemp({...familyTemp, name: e.target.value})}
+                                        className="flex-1 p-2 rounded-lg border border-slate-200 text-sm"
                                     />
-                                    <select 
-                                        className="p-2.5 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:ring-2 focus:ring-emerald-500 outline-none" 
-                                        value={familyTemp.relation} 
-                                        onChange={e => setFamilyTemp({...familyTemp, relation: e.target.value})}
+                                    <select
+                                        value={familyTemp.relation}
+                                        onChange={(e) => setFamilyTemp({...familyTemp, relation: e.target.value})}
+                                        className="p-2 rounded-lg border border-slate-200 text-sm bg-white"
                                     >
                                         <option value="Istri">Istri</option>
                                         <option value="Suami">Suami</option>
                                         <option value="Anak">Anak</option>
-                                        <option value="Ortu">Ortu</option>
+                                        <option value="Orang Tua">Orang Tua</option>
                                         <option value="ART">ART</option>
+                                        <option value="Lainnya">Lainnya</option>
                                     </select>
                                     <button 
-                                        type="button" 
-                                        onClick={addFamilyMember} 
-                                        className="bg-slate-800 text-white px-4 rounded-lg text-sm font-bold hover:bg-slate-900 transition-colors"
+                                        type="button"
+                                        onClick={addFamilyMember}
+                                        className="bg-slate-800 text-white p-2 rounded-lg hover:bg-slate-700"
                                     >
-                                        Tambah
+                                        <Plus className="w-4 h-4"/>
                                     </button>
                                 </div>
-                                {/* Family List */}
+
                                 <div className="space-y-2">
-                                    {formData.family.length === 0 ? (
-                                        <p className="text-xs text-slate-400 text-center py-2">Belum ada anggota keluarga</p>
-                                    ) : (
-                                        formData.family.map((f, i) => (
-                                            <div key={i} className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100">
-                                                <div>
-                                                    <span className="text-sm font-medium text-slate-800">{f.name}</span>
-                                                    <span className={`text-xs ml-2 px-2 py-0.5 rounded-full ${getRelationColor(f.relation)}`}>
-                                                        {f.relation}
-                                                    </span>
-                                                </div>
-                                                <button 
-                                                    type="button" 
-                                                    onClick={() => removeFamilyMember(i)} 
-                                                    className="text-red-500 hover:text-red-700 text-xs font-bold"
-                                                >
-                                                    Hapus
-                                                </button>
+                                    {(formData.family || []).map((member, idx) => (
+                                        <div key={idx} className="flex items-center justify-between bg-slate-50 p-2 rounded-lg text-sm">
+                                            <div>
+                                                <span className="font-bold text-slate-700">{member.name}</span>
+                                                <span className="text-slate-500 mx-2">•</span>
+                                                <span className="text-slate-500">{member.relation}</span>
                                             </div>
-                                        ))
+                                            <button 
+                                                type="button"
+                                                onClick={() => removeFamilyMember(idx)}
+                                                className="text-red-400 hover:text-red-600"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5"/>
+                                            </button>
+                                        </div>
+                                    ))}
+                                    {(!formData.family || formData.family.length === 0) && (
+                                        <p className="text-xs text-slate-400 italic text-center py-2">Belum ada anggota keluarga ditambahkan</p>
                                     )}
                                 </div>
                             </div>
 
-                            {/* Submit Button */}
                             <button 
                                 type="submit" 
-                                className="w-full bg-emerald-600 text-white py-3.5 rounded-xl font-bold hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200"
+                                className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all transform hover:scale-[1.02] active:scale-95 mt-4"
                             >
-                                {isEditMode ? 'Simpan Perubahan' : 'Simpan Data Warga'}
+                                Simpan Data Warga
                             </button>
                         </form>
                     </div>
@@ -574,7 +674,7 @@ const ResidentManager = ({ user }) => {
                                         </td>
                                         <td className="p-4">
                                             <div className="flex items-center justify-center gap-1">
-                                                {/* View Button */}
+                                                {/* View Button - Always visible */}
                                                 <button 
                                                     onClick={() => setDetailModal({ open: true, resident: r })} 
                                                     className="text-blue-500 hover:text-blue-700 p-2 hover:bg-blue-50 rounded-lg transition-colors"
@@ -582,22 +682,28 @@ const ResidentManager = ({ user }) => {
                                                 >
                                                     <Eye className="w-4 h-4"/>
                                                 </button>
-                                                {/* Edit Button */}
-                                                <button 
-                                                    onClick={() => openEditModal(r)} 
-                                                    className="text-amber-500 hover:text-amber-700 p-2 hover:bg-amber-50 rounded-lg transition-colors"
-                                                    title="Edit data warga"
-                                                >
-                                                    <Edit2 className="w-4 h-4"/>
-                                                </button>
-                                                {/* Delete Button */}
-                                                <button 
-                                                    onClick={() => setDeleteModal({ open: true, resident: r })} 
-                                                    className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition-colors"
-                                                    title="Hapus data warga"
-                                                >
-                                                    <Trash2 className="w-4 h-4"/>
-                                                </button>
+                                                
+                                                {/* Edit Button - Only for RW or Own RT */}
+                                                {(user?.type === 'RW' || (r.rt === user?.id || (r.unit && r.unit.includes(`RT ${user?.id}`)) || (r.unit && r.unit.includes(`RT${user?.id}`)))) && (
+                                                    <button 
+                                                        onClick={() => openEditModal(r)} 
+                                                        className="text-amber-500 hover:text-amber-700 p-2 hover:bg-amber-50 rounded-lg transition-colors"
+                                                        title="Edit data warga"
+                                                    >
+                                                        <Edit2 className="w-4 h-4"/>
+                                                    </button>
+                                                )}
+                                                
+                                                {/* Delete Button - RW ONLY */}
+                                                {user?.type === 'RW' && (
+                                                    <button 
+                                                        onClick={() => setDeleteModal({ open: true, resident: r })} 
+                                                        className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition-colors"
+                                                        title="Hapus data warga"
+                                                    >
+                                                        <Trash2 className="w-4 h-4"/>
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
