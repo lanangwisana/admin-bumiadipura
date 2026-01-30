@@ -43,13 +43,36 @@ const DashboardOverview = ({ user, role }) => {
         // Total Residents Listener
         const unsubResidents = onSnapshot(
             collection(db, 'artifacts', APP_ID, 'public', 'data', 'residents'), 
-            (s) => setStats(prev => ({...prev, residents: s.size}))
+            (s) => {
+                let count = s.size;
+                if (role?.type === 'RT') {
+                    // Filter count for RT
+                    const rtCode = role?.id;
+                    const filtered = s.docs.filter(d => {
+                        const u = (d.data().unit || '').toUpperCase();
+                        return u.includes(`RT${rtCode}`) || u.includes(`RT ${rtCode}`) || u.includes(`RT.${rtCode}`);
+                    });
+                    count = filtered.length;
+                }
+                setStats(prev => ({...prev, residents: count}));
+            }
         );
         
         // Open Reports Count Listener
         const unsubReports = onSnapshot(
             query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'reports'), where('status', '==', 'OPEN')), 
-            (s) => setStats(prev => ({...prev, openReports: s.size}))
+            (s) => {
+                let count = s.size;
+                if (role?.type === 'RT') {
+                    const rtCode = role?.id;
+                    const filtered = s.docs.filter(d => {
+                        const u = (d.data().userUnit || '').toUpperCase();
+                        return u.includes(`RT${rtCode}`) || u.includes(`RT ${rtCode}`) || u.includes(`RT.${rtCode}`);
+                    });
+                    count = filtered.length;
+                }
+                setStats(prev => ({...prev, openReports: count}));
+            }
         );
         
         // Recent Reports - Max 5 (then filter client-side for OPEN & IN_PROGRESS)
@@ -57,11 +80,21 @@ const DashboardOverview = ({ user, role }) => {
             query(
                 collection(db, 'artifacts', APP_ID, 'public', 'data', 'reports'), 
                 orderBy('createdAt', 'desc'), 
-                limit(10)
+                limit(20) // Fetch more to allow for filtering
             ), 
             (s) => {
-                // Filter client-side to exclude DONE status
-                const allReports = s.docs.map(d => ({id: d.id, ...d.data()}));
+                let allReports = s.docs.map(d => ({id: d.id, ...d.data()}));
+                
+                // RBAC Filter for Recent Reports
+                if (role?.type === 'RT') {
+                    const rtCode = role?.id;
+                    allReports = allReports.filter(r => {
+                         const u = (r.userUnit || '').toUpperCase();
+                         return u.includes(`RT${rtCode}`) || u.includes(`RT ${rtCode}`) || u.includes(`RT.${rtCode}`);
+                    });
+                }
+
+                // Filter active reports (excluding DONE)
                 const activeReports = allReports.filter(r => r.status !== 'DONE').slice(0, 3);
                 setRecentReports(activeReports);
             }

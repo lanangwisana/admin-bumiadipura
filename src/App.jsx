@@ -75,7 +75,10 @@ export default function AdminApp() {
                 activeTab={activeTab} 
                 setActiveTab={setActiveTab} 
                 role={role} 
-                onLogout={() => setRole(null)}
+                onLogout={() => { 
+                    setRole(null);
+                    setActiveTab('dashboard');
+                }}
                 isOpen={sidebarOpen}
                 onClose={() => setSidebarOpen(false)}
             />
@@ -95,13 +98,13 @@ export default function AdminApp() {
                 
                 {/* Feature Routes */}
                 {activeTab === 'dashboard' && <DashboardOverview user={user} role={role} />}
-                {activeTab === 'residents' && <ResidentManager user={user} />}
-                {activeTab === 'reports' && <ReportPermitManager user={user} />}
+                {activeTab === 'residents' && <ResidentManager user={role} />}
+                {activeTab === 'reports' && <ReportPermitManager user={role} />}
                 {activeTab === 'content' && <ContentManager user={user} role={role} />}
-                {activeTab === 'forum' && <ForumManager user={user} />}
+                {activeTab === 'forum' && <ForumManager user={role} />}
                 {activeTab === 'finance' && <FinanceManager user={user} role={role} />}
                 {activeTab === 'users' && <UserManager />}
-                {activeTab === 'iot' && <IoTControl user={user} />}
+                {activeTab === 'iot' && <IoTControl user={role} />}
             </main>
         </div>
     );
