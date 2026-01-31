@@ -1,8 +1,8 @@
 // use client;
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Lock, LogIn, Loader2, Mail, AlertCircle, ShieldCheck } from 'lucide-react';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { collection, getDocs, query, where, addDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db, auth, APP_ID, LOGO_URL } from '../../config';
 
 
@@ -12,6 +12,16 @@ import { db, auth, APP_ID, LOGO_URL } from '../../config';
  * - Password is hashed by Firebase (not stored as plain text)
  * - Rate limiting built-in to prevent brute force
  * - Session managed securely with JWT tokens
+ * 
+ * Data Structure in Firestore (admin_accounts):
+ * {
+ *   uid: string,        // Firebase Auth UID
+ *   email: string,      // Email address
+ *   name: string,       // Full name
+ *   role: "RT" | "RW",  // User role
+ *   rtNumber: string,   // RT number (only for RT role)
+ *   createdAt: string   // ISO date string
+ * }
  */
 const AdminLogin = ({ onLogin }) => {
     const [roleType, setRoleType] = useState('RW'); // RW | RT
@@ -20,52 +30,6 @@ const AdminLogin = ({ onLogin }) => {
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
-
-    // Auto-seed admin_accounts if empty (for first-time setup)
-    useEffect(() => {
-        const seedAdminAccounts = async () => {
-            try {
-                const adminRef = collection(db, 'artifacts', APP_ID, 'public', 'data', 'admin_accounts');
-                const snapshot = await getDocs(adminRef);
-                
-                if (snapshot.empty) {
-                    console.log('Seeding admin_accounts...');
-                    const defaultAdmins = [
-                        { 
-                            email: "admin.rw@bumiadipura.com", 
-                            role: "RW", 
-                            rtNumber: "00", 
-                            name: "Super Admin RW",
-                            createdAt: new Date().toISOString() 
-                        },
-                        { 
-                            email: "ketua.rt01@bumiadipura.com", 
-                            role: "RT", 
-                            rtNumber: "01", 
-                            name: "Ketua RT 01",
-                            createdAt: new Date().toISOString() 
-                        },
-                        { 
-                            email: "ketua.rt02@bumiadipura.com", 
-                            role: "RT", 
-                            rtNumber: "02", 
-                            name: "Ketua RT 02",
-                            createdAt: new Date().toISOString() 
-                        }
-                    ];
-                    
-                    for (const admin of defaultAdmins) {
-                        await addDoc(adminRef, admin);
-                    }
-                    console.log('Admin accounts seeded successfully!');
-                }
-            } catch (err) {
-                console.error('Error seeding admin accounts:', err);
-            }
-        };
-        
-        seedAdminAccounts();
-    }, []);
 
     /**
      * Handle Secure Login with Firebase Auth
