@@ -10,6 +10,7 @@ import {
   Shield,
   LogOut,
   X,
+  AlertTriangle,
 } from "lucide-react";
 import { LOGO_URL } from "../../config";
 import { canAccessFeature } from "../../utils/permissions";
