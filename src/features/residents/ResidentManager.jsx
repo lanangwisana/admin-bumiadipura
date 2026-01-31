@@ -1,13 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { UserPlus, Plus, X, Trash2, Users, Search, AlertTriangle, Eye, Edit2, Phone, Briefcase, Home, Globe } from 'lucide-react';
-import { collection, onSnapshot, query, orderBy, addDoc, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { UserPlus, Plus, X, Trash2, Users, Search, AlertTriangle, Eye, Edit2, Phone, Briefcase, Home, Globe, Loader2 } from 'lucide-react';
+import { collection, onSnapshot, query, orderBy, addDoc, deleteDoc, doc, updateDoc, getDocs, where, getDoc } from 'firebase/firestore';
 import { db, APP_ID } from '../../config';
+import { usePermissions } from '../../hooks/usePermissions';
 
 /**
  * Resident Manager Component
  * CRUD operations for resident data (Data Warga)
+ * 
+ * Permissions:
+ * - RW: Can view all residents, full CRUD on all
+ * - RT: Can only view/edit residents in their RT scope
  */
 const ResidentManager = ({ user }) => {
+    // Permission system
+    const perms = usePermissions(user);
+    
     const [residents, setResidents] = useState([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isEditMode, setIsEditMode] = useState(false);
@@ -24,9 +32,9 @@ const ResidentManager = ({ user }) => {
         family: [] 
     });
     const [familyTemp, setFamilyTemp] = useState({ name: '', relation: 'Istri' });
-    const [isGlobalSearch, setIsGlobalSearch] = useState(false); // New State
+    const [seeding, setSeeding] = useState(false); // For development tools
 
-    // Realtime listener for residents collection with RBAC
+    // Realtime listener for residents collection with scope filtering
     useEffect(() => {
         if (!user) return;
         
@@ -38,10 +46,10 @@ const ResidentManager = ({ user }) => {
         const unsub = onSnapshot(q, (snapshot) => {
             let fetchedData = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
             
-            // Client-side filtering for complex string matching
-            // This is safer for flexible "unit" formats (e.g. "A-01 RT01", "C-09 (RT 02)")
-            if (user.type === 'RT' && !isGlobalSearch) {
-                const rtCode = user.id; // e.g. "01"
+            // Apply scope filtering based on permissions
+            if (perms.isRT) {
+                // RT only sees residents in their RT
+                const rtCode = perms.rtNumber; // e.g. "01"
                 fetchedData = fetchedData.filter(resident => {
                     // Method 1: Check explicit RT field (New Standard)
                     if (resident.rt) {
@@ -57,12 +65,13 @@ const ResidentManager = ({ user }) => {
                            unit.includes(`RT. ${rtCode}`); 
                 });
             }
+            // RW sees all residents (no filtering)
             
             setResidents(fetchedData);
         }, (err) => console.log(err)); 
         
         return () => unsub(); 
-    }, [user, isGlobalSearch]);
+    }, [user, perms.isRT, perms.rtNumber]);
 
     // Reset form data
     const resetForm = () => {
@@ -76,8 +85,8 @@ const ResidentManager = ({ user }) => {
     const openCreateModal = () => {
         resetForm();
         // Pre-fill RT if user is RT
-        if (user?.type === 'RT') {
-            setFormData(prev => ({...prev, rt: user.id}));
+        if (perms.isRT) {
+            setFormData(prev => ({...prev, rt: perms.rtNumber}));
         }
         setIsModalOpen(true);
     };
@@ -113,7 +122,7 @@ const ResidentManager = ({ user }) => {
         try {
             // Logic for Final Unit String
             // Combine unit input "A1/10" with RT "01" -> "A1/10 (RT 01)"
-            const rtNum = user?.type === 'RT' ? user.id : formData.rt;
+            const rtNum = perms.isRT ? perms.rtNumber : formData.rt;
             const pureUnit = formData.unit.replace(/ \(RT \d+\)$/, ''); // clean first
             
             // If user forgot to put RT in unit string, append it standardly
@@ -162,7 +171,23 @@ const ResidentManager = ({ user }) => {
     const handleDelete = async () => { 
         if (!deleteModal.resident) return;
         try {
-            await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'residents', deleteModal.resident.id));
+            // Check for linkedUid to clean up User data
+            const residentId = deleteModal.resident.id;
+            const residentRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'residents', residentId);
+            const residentSnap = await getDoc(residentRef);
+
+            if (residentSnap.exists()) {
+                const data = residentSnap.data();
+                if (data.linkedUid) {
+                    // Also delete the synced Synced User Profile
+                    // We delete profile/main. We could also delete the user root doc but let's stick to profile as that's what we synced.
+                    await deleteDoc(doc(db, 'artifacts', APP_ID, 'users', data.linkedUid, 'profile', 'main'));
+                    console.log(`Deleted linked user profile for UID: ${data.linkedUid}`);
+                }
+            }
+
+            // Delete the Resident document
+            await deleteDoc(residentRef);
             setDeleteModal({ open: false, resident: null });
         } catch (error) {
             console.error('Error deleting resident:', error);
@@ -204,52 +229,158 @@ const ResidentManager = ({ user }) => {
         }
     };
 
+    // ========== DEVELOPMENT TOOLS ==========
+    const seedResidents = async () => {
+        if (!confirm("Ini akan menambahkan 2 data warga RT 01 untuk testing.\n\nLanjutkan?")) return;
+        
+        setSeeding(true);
+        try {
+            const dummyResidents = [
+                {
+                    name: "Budi Santoso",
+                    unit: "A-01 (RT 01)",
+                    rt: "01",
+                    phone: "08123456001",
+                    job: "Wiraswasta",
+                    status: "Tetap",
+                    family: [
+                        { name: "Siti Aminah", relation: "Istri" },
+                        { name: "Ahmad Budi", relation: "Anak" }
+                    ]
+                },
+                {
+                    name: "Ani Wijaya",
+                    unit: "A-02 (RT 01)",
+                    rt: "01",
+                    phone: "08123456002",
+                    job: "Guru/Dosen",
+                    status: "Tetap",
+                    family: [
+                        { name: "Hendra Wijaya", relation: "Suami" },
+                        { name: "Rizky Wijaya", relation: "Anak" }
+                    ]
+                }
+            ];
+            
+            const residentsRef = collection(db, "artifacts", APP_ID, "public", "data", "residents");
+            let count = 0;
+            
+            for (const resident of dummyResidents) {
+                await addDoc(residentsRef, {
+                    ...resident,
+                    createdAt: new Date().toISOString(),
+                    isDummy: true
+                });
+                count++;
+            }
+            
+            alert(`✅ Berhasil membuat ${count} data warga RT 01!\n\n• Budi Santoso (A-01)\n• Ani Wijaya (A-02)\n\nSekarang bisa generate tagihan IPL!`);
+        } catch (err) {
+            console.error(err);
+            alert("Gagal membuat data warga: " + err.message);
+        } finally {
+            setSeeding(false);
+        }
+    };
+
+    const clearDummyResidents = async () => {
+        if (!confirm("Hapus semua data warga dummy?\n\nData asli tidak akan terhapus.")) return;
+        
+        setSeeding(true);
+        try {
+            const residentsRef = collection(db, "artifacts", APP_ID, "public", "data", "residents");
+            const q = query(residentsRef, where("isDummy", "==", true));
+            const snapshot = await getDocs(q);
+            
+            let deletedCount = 0;
+            for (const docSnap of snapshot.docs) {
+                await deleteDoc(doc(db, "artifacts", APP_ID, "public", "data", "residents", docSnap.id));
+                deletedCount++;
+            }
+            
+            alert(`🗑️ Berhasil menghapus ${deletedCount} data warga dummy.`);
+        } catch (err) {
+            console.error(err);
+            alert("Gagal menghapus data dummy: " + err.message);
+        } finally {
+            setSeeding(false);
+        }
+    };
+
+    const clearAllResidents = async () => {
+        if (!confirm("⚠️ PERHATIAN!\n\nIni akan MENGHAPUS SEMUA data warga (termasuk data asli)!\n\nGunakan ini hanya untuk reset development.\n\nLanjutkan?")) return;
+        
+        // Double confirmation
+        if (!confirm("Anda yakin? Semua data warga akan hilang permanen!")) return;
+        
+        setSeeding(true);
+        try {
+            const residentsRef = collection(db, "artifacts", APP_ID, "public", "data", "residents");
+            const snapshot = await getDocs(residentsRef);
+            
+            let deletedCount = 0;
+            for (const docSnap of snapshot.docs) {
+                await deleteDoc(doc(db, "artifacts", APP_ID, "public", "data", "residents", docSnap.id));
+                deletedCount++;
+            }
+            
+            alert(`🗑️ Database berhasil di-reset!\n\nDihapus: ${deletedCount} data warga\n\nDatabase sekarang kosong.`);
+        } catch (err) {
+            console.error(err);
+            alert("Gagal reset database: " + err.message);
+        } finally {
+            setSeeding(false);
+        }
+    };
+
     return (
         <div className="space-y-6 animate-fade-in">
             {/* Header */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                     <h2 className="text-2xl font-bold text-slate-800">Manajemen Data Warga</h2>
-                    <p className="text-slate-500 text-sm">Total {residents.length} kepala keluarga terdaftar</p>
-                </div>
-                <button 
-                    onClick={openCreateModal} 
-                    className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-emerald-700 text-sm shadow-lg shadow-emerald-200 flex items-center gap-2 transition-all hover:scale-105"
-                >
-                    <UserPlus className="w-4 h-4"/> Tambah Warga
-                </button>
-            </div>
-
-            {/* Search Bar & Global Toggle */}
-            <div className="flex flex-col md:flex-row gap-4">
-                <div className="relative flex-1">
-                    <Search className="absolute left-4 top-3.5 w-5 h-5 text-slate-400"/>
-                    <input 
-                        type="text"
-                        placeholder="Cari berdasarkan nama, unit, atau kontak..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-12 pr-4 py-3 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-sm"
-                    />
+                    <p className="text-slate-500 text-sm">
+                        Total {residents.length} kepala keluarga terdaftar
+                        {perms.isRT && <span className="font-semibold text-emerald-600"> • RT {perms.rtNumber}</span>}
+                        {perms.isRW && <span className="text-blue-600"> • Mode Monitoring</span>}
+                    </p>
                 </div>
                 
-                {/* Global Search Toggle for RT */}
-                {user?.type === 'RT' && (
-                    <button
-                        onClick={() => setIsGlobalSearch(!isGlobalSearch)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-all ${
-                            isGlobalSearch 
-                            ? 'bg-blue-600 text-white border-blue-600 shadow-md ring-2 ring-blue-200' 
-                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                        }`}
+                {/* Create button only for RT */}
+                {perms.isRT && (
+                    <button 
+                        onClick={openCreateModal} 
+                        className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-emerald-700 text-sm shadow-lg shadow-emerald-200 flex items-center gap-2 transition-all hover:scale-105"
                     >
-                        <Globe className={`w-5 h-5 ${isGlobalSearch ? 'animate-pulse' : ''}`}/>
-                        <div className="text-left leading-tight">
-                            <span className="block text-xs font-bold uppercase tracking-wider">Mode Pencarian</span>
-                            <span className="font-bold text-sm">{isGlobalSearch ? 'Global (Semua RT)' : 'Wilayah Saya'}</span>
-                        </div>
+                        <UserPlus className="w-4 h-4"/> Tambah Warga
                     </button>
                 )}
+            </div>
+
+            {/* Read-only Notice for RW */}
+            {perms.isRW && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
+                    <Eye className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                        <h4 className="font-bold text-blue-900 mb-1">Mode Monitoring (Read-Only)</h4>
+                        <p className="text-sm text-blue-700">
+                            Anda dapat melihat data warga dari seluruh RT untuk keperluan monitoring. 
+                            Untuk menambah, mengubah, atau menghapus data warga, silakan koordinasi dengan RT terkait.
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            {/* Search Bar */}
+            <div className="relative">
+                <Search className="absolute left-4 top-3.5 w-5 h-5 text-slate-400"/>
+                <input 
+                    type="text"
+                    placeholder="Cari berdasarkan nama, unit, atau kontak..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-12 pr-4 py-3 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-sm"
+                />
             </div>
             
             {/* Modal Create/Edit Warga */}
@@ -278,7 +409,7 @@ const ResidentManager = ({ user }) => {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <label className="text-sm font-bold text-slate-600">Wilayah RT</label>
-                                    {user?.type === 'RW' ? (
+                                    {perms.isRW ? (
                                         <select
                                             required
                                             value={formData.rt || ''}
@@ -294,7 +425,7 @@ const ResidentManager = ({ user }) => {
                                     ) : (
                                         <input 
                                             type="text" 
-                                            value={`RT ${user?.id || ''}`} 
+                                            value={`RT ${perms.rtNumber || ''}`} 
                                             disabled 
                                             className="w-full p-3 rounded-xl border border-slate-200 bg-slate-100 text-slate-500 font-bold"
                                         />
@@ -683,26 +814,32 @@ const ResidentManager = ({ user }) => {
                                                     <Eye className="w-4 h-4"/>
                                                 </button>
                                                 
-                                                {/* Edit Button - Only for RW or Own RT */}
-                                                {(user?.type === 'RW' || (r.rt === user?.id || (r.unit && r.unit.includes(`RT ${user?.id}`)) || (r.unit && r.unit.includes(`RT${user?.id}`)))) && (
-                                                    <button 
-                                                        onClick={() => openEditModal(r)} 
-                                                        className="text-amber-500 hover:text-amber-700 p-2 hover:bg-amber-50 rounded-lg transition-colors"
-                                                        title="Edit data warga"
-                                                    >
-                                                        <Edit2 className="w-4 h-4"/>
-                                                    </button>
+                                                {/* Edit & Delete - Only for RT (own residents) */}
+                                                {perms.isRT && r.rt === perms.rtNumber && (
+                                                    <>
+                                                        <button 
+                                                            onClick={() => openEditModal(r)} 
+                                                            className="text-amber-500 hover:text-amber-700 p-2 hover:bg-amber-50 rounded-lg transition-colors"
+                                                            title="Edit data warga"
+                                                        >
+                                                            <Edit2 className="w-4 h-4"/>
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => setDeleteModal({ open: true, resident: r })} 
+                                                            className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition-colors"
+                                                            title="Hapus data warga"
+                                                        >
+                                                            <Trash2 className="w-4 h-4"/>
+                                                        </button>
+                                                    </>
                                                 )}
                                                 
-                                                {/* Delete Button - RW ONLY */}
-                                                {user?.type === 'RW' && (
-                                                    <button 
-                                                        onClick={() => setDeleteModal({ open: true, resident: r })} 
-                                                        className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition-colors"
-                                                        title="Hapus data warga"
-                                                    >
-                                                        <Trash2 className="w-4 h-4"/>
-                                                    </button>
+                                                {/* RW sees view-only icon */}
+                                                {perms.isRW && (
+                                                    <div className="flex items-center gap-1 text-blue-500 text-xs">
+                                                        <Eye className="w-3 h-3"/>
+                                                        <span>View</span>
+                                                    </div>
                                                 )}
                                             </div>
                                         </td>
@@ -712,6 +849,61 @@ const ResidentManager = ({ user }) => {
                         </tbody>
                     </table>
                 </div>
+            </div>
+
+            {/* Development Tools */}
+            <div className="mt-6 p-4 bg-slate-50 border border-dashed border-slate-300 rounded-xl">
+                <p className="text-xs text-slate-500 mb-3 font-semibold">🔧 Development Tools - Data Warga (Hapus sebelum production)</p>
+                
+                {/* Seed Section */}
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-xs font-bold text-blue-800 mb-2">🌱 Seed Data Warga (Testing IPL)</p>
+                    <p className="text-xs text-blue-700 mb-2">
+                        Buat 2 data warga RT 01 untuk testing fitur tagihan IPL.
+                    </p>
+                    <button
+                        onClick={seedResidents}
+                        disabled={seeding}
+                        className="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {seeding ? <Loader2 className="w-3 h-3 animate-spin" /> : "🌱"}
+                        Seed 2 Warga RT 01
+                    </button>
+                </div>
+
+                {/* Clear Section */}
+                <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <p className="text-xs font-bold text-amber-800 mb-2">⚠️ Reset Database</p>
+                    <p className="text-xs text-amber-700 mb-3">
+                        Pilih opsi sesuai kebutuhan:
+                    </p>
+                    <div className="flex gap-2 flex-wrap">
+                        <button
+                            onClick={clearDummyResidents}
+                            disabled={seeding}
+                            className="bg-orange-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-orange-700 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {seeding ? <Loader2 className="w-3 h-3 animate-spin" /> : "🗑️"}
+                            Hapus Data Dummy Saja
+                        </button>
+                        <button
+                            onClick={clearAllResidents}
+                            disabled={seeding}
+                            className="bg-red-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-red-700 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {seeding ? <Loader2 className="w-3 h-3 animate-spin" /> : "🗑️"}
+                            Reset SEMUA Data
+                        </button>
+                    </div>
+                    <p className="text-xs text-amber-600 mt-2">
+                        ⚠️ "Reset SEMUA Data" akan menghapus data asli juga. Gunakan dengan hati-hati!
+                    </p>
+                </div>
+
+                {/* Info */}
+                <p className="text-xs text-slate-500 mt-2">
+                    ℹ️ Tools ini untuk development saja. Hapus section ini sebelum production.
+                </p>
             </div>
         </div>
     );

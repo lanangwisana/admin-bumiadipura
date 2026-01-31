@@ -12,22 +12,24 @@ import {
   X,
 } from "lucide-react";
 import { LOGO_URL } from "../../config";
+import { canAccessFeature } from "../../utils/permissions";
 
 const menuItems = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { id: "residents", label: "Data Warga", icon: Users },
-  { id: "finance", label: "Keuangan", icon: DollarSign },
-  { id: "reports", label: "Laporan", icon: FileCheck },
-  { id: "content", label: "Info & Acara", icon: Calendar },
-  { id: "forum", label: "Forum Warga", icon: MessageCircle, role: "RW" }, // Forum moderation restricted to RW
-  { id: "users", label: "Manajemen User", icon: UserCog }, // Access opened for RT as requested
-  { id: "iot", label: "Keamanan (IoT)", icon: Shield }, // Access opened for RT as requested
+  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, feature: "dashboard" },
+  { id: "residents", label: "Data Warga", icon: Users, feature: "residents" },
+  { id: "finance", label: "Keuangan", icon: DollarSign, feature: "finance" },
+  { id: "reports", label: "Laporan", icon: FileCheck, feature: "reports" },
+  { id: "content", label: "Info & Acara", icon: Calendar, feature: "content" },
+  { id: "forum", label: "Forum Warga", icon: MessageCircle, feature: "forum" },
+  { id: "users", label: "Manajemen User", icon: UserCog, feature: "users" },
+  { id: "iot", label: "Keamanan (IoT)", icon: Shield, feature: "iot" },
 ];
 
 const Sidebar = ({
   activeTab,
   setActiveTab,
   role,
+  currentUser,
   onLogout,
   isOpen,
   onClose,
@@ -37,6 +39,12 @@ const Sidebar = ({
     // Close sidebar on mobile after navigation
     if (onClose) onClose();
   };
+
+  // Filter menu items based on user permissions
+  const accessibleMenuItems = menuItems.filter((item) => {
+    if (!currentUser) return false;
+    return canAccessFeature(currentUser.role, item.feature);
+  });
 
   return (
     <>
@@ -99,7 +107,7 @@ const Sidebar = ({
                   {role.label}
                 </p>
                 <p className="text-[10px] text-emerald-200 truncate">
-                  Akses Penuh
+                  {role.type === 'RW' ? 'Super Admin' : `RT ${role.id}`}
                 </p>
               </div>
             </div>
@@ -108,22 +116,20 @@ const Sidebar = ({
 
         {/* Navigation */}
         <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
-          {menuItems
-            .filter((i) => !i.role || i.role === role.type)
-            .map((item) => (
-              <button
-                key={item.id}
-                onClick={() => handleNavClick(item.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                  activeTab === item.id
-                    ? "bg-emerald-700 text-white shadow-lg shadow-emerald-900/50 border-l-4 border-yellow-400"
-                    : "text-emerald-100 hover:bg-emerald-800 hover:text-white"
-                }`}
-              >
-                <item.icon className="w-5 h-5" />
-                <span className="font-medium text-sm">{item.label}</span>
-              </button>
-            ))}
+          {accessibleMenuItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => handleNavClick(item.id)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                activeTab === item.id
+                  ? "bg-emerald-700 text-white shadow-lg shadow-emerald-900/50 border-l-4 border-yellow-400"
+                  : "text-emerald-100 hover:bg-emerald-800 hover:text-white"
+              }`}
+            >
+              <item.icon className="w-5 h-5" />
+              <span className="font-medium text-sm">{item.label}</span>
+            </button>
+          ))}
         </nav>
 
         {/* Logout Button */}
@@ -141,3 +147,4 @@ const Sidebar = ({
 };
 
 export default Sidebar;
+

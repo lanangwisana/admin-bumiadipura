@@ -21,13 +21,16 @@ import {
     UserManager
 } from './features';
 
+// Permission System
+import { canAccessFeature } from './utils/permissions';
+
 /**
  * Main Admin Application Component
- * Handles authentication, navigation, and feature routing
+ * Handles authentication, navigation, and feature routing with authorization
  */
 export default function AdminApp() {
     const [activeTab, setActiveTab] = useState('dashboard');
-    const [role, setRole] = useState(null); 
+    const [role, setRole] = useState(null); // { type, id, label, scope, name, email, uid }
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -49,6 +52,47 @@ export default function AdminApp() {
             } 
         });
     }, []);
+
+    // Prepare currentUser object for permission system
+    const currentUser = role ? {
+        role: role.type,      // 'RW' or 'RT'
+        rtNumber: role.id,    // RT number (e.g. '01') or null for RW
+        name: role.name,
+        email: role.email,
+        uid: role.uid,
+        scope: role.scope,
+        label: role.label
+    } : null;
+
+    // Check if current user can access a feature
+    const canAccess = (feature) => {
+        if (!currentUser) return false;
+        return canAccessFeature(currentUser.role, feature);
+    };
+
+    // Navigate to tab with access check
+    const navigateToTab = (tabId) => {
+        // Map tab IDs to feature names
+        const featureMap = {
+            'dashboard': 'dashboard',
+            'residents': 'residents',
+            'finance': 'finance',
+            'reports': 'reports',
+            'content': 'content',
+            'forum': 'forum',
+            'users': 'users',
+            'iot': 'iot'
+        };
+        
+        const feature = featureMap[tabId];
+        if (feature && !canAccess(feature)) {
+            // User doesn't have access, don't navigate
+            console.warn(`Access denied to ${feature} for role ${currentUser.role}`);
+            return;
+        }
+        
+        setActiveTab(tabId);
+    };
 
     // Loading State
     if (loading) {
@@ -73,8 +117,9 @@ export default function AdminApp() {
             {/* Sidebar Navigation */}
             <Sidebar 
                 activeTab={activeTab} 
-                setActiveTab={setActiveTab} 
+                setActiveTab={navigateToTab}
                 role={role} 
+                currentUser={currentUser}
                 onLogout={() => { 
                     setRole(null);
                     setActiveTab('dashboard');
@@ -96,15 +141,36 @@ export default function AdminApp() {
                     </button>
                 </div>
                 
-                {/* Feature Routes */}
-                {activeTab === 'dashboard' && <DashboardOverview user={user} role={role} />}
-                {activeTab === 'residents' && <ResidentManager user={role} />}
-                {activeTab === 'reports' && <ReportPermitManager user={role} />}
-                {activeTab === 'content' && <ContentManager user={user} role={role} />}
-                {activeTab === 'forum' && <ForumManager user={role} />}
-                {activeTab === 'finance' && <FinanceManager user={user} role={role} />}
-                {activeTab === 'users' && <UserManager />}
-                {activeTab === 'iot' && <IoTControl user={role} />}
+                {/* Feature Routes with Permission Checks */}
+                {activeTab === 'dashboard' && <DashboardOverview user={currentUser} role={role} />}
+                {activeTab === 'residents' && canAccess('residents') && <ResidentManager user={currentUser} />}
+                {activeTab === 'reports' && canAccess('reports') && <ReportPermitManager user={currentUser} />}
+                {activeTab === 'content' && canAccess('content') && <ContentManager user={currentUser} role={role} />}
+                {activeTab === 'forum' && canAccess('forum') && <ForumManager user={currentUser} />}
+                {activeTab === 'finance' && canAccess('finance') && <FinanceManager user={currentUser} role={role} />}
+                {activeTab === 'users' && canAccess('users') && <UserManager user={currentUser} />}
+                {activeTab === 'iot' && canAccess('iot') && <IoTControl user={currentUser} />}
+                
+                {/* Access Denied Message */}
+                {!canAccess(activeTab) && activeTab !== 'dashboard' && (
+                    <div className="flex items-center justify-center min-h-[50vh]">
+                        <div className="text-center p-8 bg-white rounded-lg shadow-lg max-w-md">
+                            <div className="text-6xl mb-4">🚫</div>
+                            <h2 className="text-2xl font-bold text-gray-800 mb-2">
+                                Akses Ditolak
+                            </h2>
+                            <p className="text-gray-600 mb-6">
+                                Anda tidak memiliki izin untuk mengakses fitur ini.
+                            </p>
+                            <button
+                                onClick={() => navigateToTab('dashboard')}
+                                className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
+                            >
+                                Kembali ke Dashboard
+                            </button>
+                        </div>
+                    </div>
+                )}
             </main>
         </div>
     );
