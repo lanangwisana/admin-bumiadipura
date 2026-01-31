@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
-import {Trash2, Loader2, Sparkles, Receipt, Edit2, CheckCircle, XCircle, ArrowDownLeft, ArrowUpRight, Wallet} from "lucide-react";
+import {Trash2, Loader2, Sparkles, Receipt, Edit2, CheckCircle, XCircle, ArrowDownLeft, ArrowUpRight, Wallet, Eye, Lock} from "lucide-react";
 import {collection, onSnapshot, query, orderBy, addDoc, updateDoc, deleteDoc, doc, getDocs, where} from "firebase/firestore";
 import { db, APP_ID } from "../../config";
 import { StatCard } from '../dashboard/components';
+import { usePermissions } from '../../hooks/usePermissions';
 
-const FinanceManager = ({ role, user }) => {
+const FinanceManager = ({ user }) => {
   const [transactions, setTransactions] = useState([]);
   const [billings, setBillings] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -20,26 +21,25 @@ const FinanceManager = ({ role, user }) => {
   const [activeTab, setActiveTab] = useState("cashflow");
   const [generatingBills, setGeneratingBills] = useState(false);
 
-  // ========== ROLE-BASED ACCESS CONTROL ==========
-  const isRW = role?.type === 'RW';
+  // ========== PERMISSION SYSTEM ==========
+  const perms = usePermissions(user);
+  const { canCreate, canEdit, canDelete } = perms.getFeaturePerms('finance');
+  
+  // RW: View all, but read-only (no CRUD)
+  // RT: Full CRUD for own RT
+  const isReadOnly = perms.isRW; // RW is read-only in finance
   
   // Filter billings for RT - only show their area's residents
-  // RT01 will only see units containing "RT01" or "RT 01" or "Blok A" etc based on your data structure
-  const filteredBillings = isRW 
+  const filteredBillings = perms.isRW 
     ? billings 
     : billings.filter(b => {
-        // RT can only see UNPAID bills from their area for follow-up
-        // Assuming unit format includes RT info (e.g., "A-01 RT01" or similar)
-        // Adjust this logic based on your actual unit format
-        const rtNumber = role?.id; // e.g., "01", "02"
         const unitLower = (b.unit || '').toLowerCase();
-        const matchesRT = unitLower.includes(`rt${rtNumber}`) || 
-                          unitLower.includes(`rt ${rtNumber}`) ||
-                          unitLower.includes(`rt0${rtNumber}`);
-        return matchesRT;
+        const rtMatch = `rt${perms.rtNumber}`;
+        return unitLower.includes(rtMatch) || 
+               unitLower.includes(`rt ${perms.rtNumber}`) ||
+               unitLower.includes(`rt0${perms.rtNumber}`);
       });
 
-  //    Arus Kas: realtime fetch
   //    Arus Kas: realtime fetch
   useEffect(() => {
     if (!user) return;
@@ -51,17 +51,16 @@ const FinanceManager = ({ role, user }) => {
       let fetched = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       
       // Filter Transactions by Scope
-      if (role?.type === 'RT') {
-          // RT only sees transactions created by them (scope === role.id)
-          // OR maybe they shouldn't see anything? Plan said "No Access / Read Only"
-          // Let's allow them to see their own "rt cash flow" if any
-          fetched = fetched.filter(t => t.scope === role.id);
+      if (perms.isRT) {
+          // RT only sees transactions created by them (scope === rtNumber)
+          fetched = fetched.filter(t => t.scope === perms.rtNumber);
       }
+      // RW sees all transactions
       
       setTransactions(fetched);
     });
     return () => unsub();
-  }, [user, role]);
+  }, [user, perms.isRT, perms.rtNumber]);
 
   //    Billing: realtime fetch
   useEffect(() => {
@@ -93,8 +92,8 @@ const FinanceManager = ({ role, user }) => {
       const baseData = {
         ...formData,
         amount: parseInt(formData.amount),
-        scope: role.type === "RW" ? "RW" : role.id,
-        createdBy: role.label,
+        scope: perms.isRW ? "RW" : perms.rtNumber,
+        createdBy: user.name || user.label || user.email,
         updatedAt: new Date().toISOString(),
       };
 
@@ -325,10 +324,36 @@ const FinanceManager = ({ role, user }) => {
         deletedCount++;
       }
       
-      alert(`🗑️ Berhasil menghapus ${deletedCount} data dummy.`);
+      alert(`🗑️ Berhasil menghapus ${deletedCount} data dummy tagihan.`);
     } catch (err) {
       console.error(err);
       alert("Gagal menghapus data dummy: " + err.message);
+    } finally {
+      setSeeding(false);
+    }
+  };
+
+  const clearAllBillings = async () => {
+    if (!confirm("⚠️ PERHATIAN!\n\nIni akan MENGHAPUS SEMUA tagihan IPL (termasuk data asli)!\n\nGunakan ini hanya untuk reset development.\n\nLanjutkan?")) return;
+    
+    // Double confirmation
+    if (!confirm("Anda yakin? Semua data tagihan akan hilang permanen!")) return;
+    
+    setSeeding(true);
+    try {
+      const billingRef = collection(db, "artifacts", APP_ID, "public", "data", "billings");
+      const snapshot = await getDocs(billingRef);
+      
+      let deletedCount = 0;
+      for (const docSnap of snapshot.docs) {
+        await deleteDoc(doc(db, "artifacts", APP_ID, "public", "data", "billings", docSnap.id));
+        deletedCount++;
+      }
+      
+      alert(`🗑️ Database berhasil di-reset!\n\nDihapus: ${deletedCount} tagihan\n\nSekarang database tagihan kosong dan siap untuk data baru.`);
+    } catch (err) {
+      console.error(err);
+      alert("Gagal reset database: " + err.message);
     } finally {
       setSeeding(false);
     }
@@ -376,6 +401,20 @@ const FinanceManager = ({ role, user }) => {
 
       {activeTab === "cashflow" ? (
         <>
+          {/* Read-only Mode Alert for RW */}
+          {isReadOnly && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 flex items-start gap-3">
+              <Eye className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <h4 className="font-bold text-blue-900 mb-1">Mode Monitoring (Read-Only)</h4>
+                <p className="text-sm text-blue-700">
+                  Anda dapat melihat semua transaksi keuangan dari seluruh RT untuk keperluan monitoring. 
+                  Untuk menambah atau mengubah data, silakan koordinasi dengan RT terkait.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Ringkasan Keuangan */}
           <div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -402,26 +441,28 @@ const FinanceManager = ({ role, user }) => {
             </div>
           </div>
 
-          {/* Add Transaction */}
-          <div className="flex justify-end mb-2">
-            <button
-              onClick={() => {
-                setIsEditMode(false);
-                setEditTransactionId(null);
-                setFormData({
-                  type: "Pemasukan",
-                  category: "IPL",
-                  amount: "",
-                  description: "",
-                  date: new Date().toISOString().split("T")[0],
-                });
-                setIsModalOpen(true);
-              }}
-              className="bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold"
-            >
-              + Transaksi
-            </button>
-          </div>
+          {/* Add Transaction - Only for RT */}
+          {canCreate && !isReadOnly && (
+            <div className="flex justify-end mb-2">
+              <button
+                onClick={() => {
+                  setIsEditMode(false);
+                  setEditTransactionId(null);
+                  setFormData({
+                    type: "Pemasukan",
+                    category: "IPL",
+                    amount: "",
+                    description: "",
+                    date: new Date().toISOString().split("T")[0],
+                  });
+                  setIsModalOpen(true);
+                }}
+                className="bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-emerald-700 transition-colors"
+              >
+                + Transaksi
+              </button>
+            </div>
+          )}
 
           {/* Transactions Table */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -431,37 +472,61 @@ const FinanceManager = ({ role, user }) => {
                   <th className="p-4">Tanggal</th>
                   <th className="p-4">Keterangan</th>
                   <th className="p-4 text-right">Jumlah</th>
-                  <th className="p-4 text-center">Aksi</th>
+                  {!isReadOnly && <th className="p-4 text-center">Aksi</th>}
                 </tr>
               </thead>
               <tbody>
-                {transactions.map((t) => (
-                  <tr key={t.id} className="border-b">
-                    <td className="p-4">{t.date}</td>
-                    <td className="p-4">{t.description}</td>
-                    <td
-                      className={`p-4 text-right font-bold ${t.type === "Pemasukan" ? "text-green-600" : "text-red-600"}`}
-                    >
-                      Rp {t.amount.toLocaleString()}
-                    </td>
-                    <td className="p-4 text-center flex justify-center gap-2">
-                      <button
-                        onClick={() => handleEdit(t)}
-                        className="text-amber-500 hover:text-amber-700 p-2 hover:bg-amber-50 rounded-lg transition-colors"
-                        title="Edit transaksi"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(t.id)}
-                        className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Hapus transaksi"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                {transactions.length === 0 ? (
+                  <tr>
+                    <td colSpan={isReadOnly ? 3 : 4} className="p-8 text-center text-slate-400">
+                      {perms.isRT ? 'Belum ada transaksi untuk RT Anda.' : 'Belum ada transaksi.'}
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  transactions.map((t) => (
+                    <tr key={t.id} className="border-b hover:bg-slate-50">
+                      <td className="p-4">{t.date}</td>
+                      <td className="p-4">
+                        <div className="font-medium">{t.description}</div>
+                        {perms.isRW && t.scope && t.scope !== 'RW' && (
+                          <div className="text-xs text-slate-500 mt-1">
+                            RT {t.scope}
+                          </div>
+                        )}
+                      </td>
+                      <td
+                        className={`p-4 text-right font-bold ${t.type === "Pemasukan" ? "text-green-600" : "text-red-600"}`}
+                      >
+                        {t.type === "Pemasukan" ? "+ " : "- "}
+                        Rp {t.amount.toLocaleString()}
+                      </td>
+                      {!isReadOnly && (
+                        <td className="p-4 text-center">
+                          <div className="flex justify-center gap-2">
+                            {canEdit && (
+                              <button
+                                onClick={() => handleEdit(t)}
+                                className="text-amber-500 hover:text-amber-700 p-2 hover:bg-amber-50 rounded-lg transition-colors"
+                                title="Edit transaksi"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button
+                                onClick={() => handleDelete(t.id)}
+                                className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Hapus transaksi"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -567,17 +632,17 @@ const FinanceManager = ({ role, user }) => {
               <Receipt className="w-8 h-8" />
             </div>
             <h3 className="text-xl font-bold text-slate-800">
-              {isRW ? 'Manajemen Tagihan IPL' : 'Daftar Tagihan IPL'}
+              {perms.isRW ? 'Manajemen Tagihan IPL' : 'Daftar Tagihan IPL'}
             </h3>
             <p className="text-slate-500 mb-4 max-w-md mx-auto">
-              {isRW 
+              {perms.isRW 
                 ? 'Generate tagihan bulanan untuk seluruh warga secara otomatis.'
-                : `Daftar tagihan warga di wilayah RT ${role?.id}. Anda dapat melihat siapa saja yang belum bayar untuk ditindaklanjuti.`
+                : `Daftar tagihan warga di wilayah RT ${perms.rtNumber}. Anda dapat melihat siapa saja yang belum bayar untuk ditindaklanjuti.`
               }
             </p>
             
             {/* RT Info Badge */}
-            {!isRW && (
+            {!perms.isRW && (
               <div className="inline-flex items-center gap-2 bg-amber-50 text-amber-700 px-4 py-2 rounded-full text-sm font-medium mb-4">
                 <span>👁️ Mode Read-Only</span>
                 <span className="text-amber-500">|</span>
@@ -586,11 +651,11 @@ const FinanceManager = ({ role, user }) => {
             )}
             
             {/* Generate Button - Only for RW */}
-            {isRW && (
+            {perms.isRW && (
               <button
                 onClick={generateMonthlyIPL}
                 disabled={generatingBills}
-                className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 shadow-lg flex items-center gap-2 mx-auto"
+                className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 shadow-lg flex items-center gap-2 mx-auto disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
                 {generatingBills ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
@@ -603,14 +668,33 @@ const FinanceManager = ({ role, user }) => {
               </button>
             )}
             
-            {/* Seeder Buttons - Development Only - Visible for all roles during testing */}
+            {/* Seeder Buttons - Development Only */}
             <div className="mt-4 pt-4 border-t border-dashed border-slate-200">
-              <p className="text-xs text-slate-400 mb-2">🔧 Development Tools (Hapus sebelum production)</p>
+              <p className="text-xs text-slate-400 mb-3 font-semibold">🔧 Development Tools (Hapus sebelum production)</p>
+              
+              {/* Reset Database Section */}
+              <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-xs font-bold text-amber-800 mb-2">⚠️ Reset Database (Hapus Semua Tagihan)</p>
+                <p className="text-xs text-amber-700 mb-2">
+                  Gunakan ini untuk membersihkan semua tagihan lama.
+                </p>
+                <button
+                  onClick={clearAllBillings}
+                  disabled={seeding}
+                  className="bg-red-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-red-700 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {seeding ? <Loader2 className="w-3 h-3 animate-spin" /> : "🗑️"}
+                  Reset Semua Tagihan
+                </button>
+              </div>
+
+              {/* Seed Dummy Section */}
+              <p className="text-xs text-slate-500 mb-2 font-medium">Atau test dengan data dummy:</p>
               <div className="flex gap-2 justify-center flex-wrap">
                 <button
                   onClick={seedDummyBillings}
                   disabled={seeding}
-                  className="bg-purple-100 text-purple-700 px-4 py-2 rounded-lg text-xs font-bold hover:bg-purple-200 transition-colors flex items-center gap-1"
+                  className="bg-purple-100 text-purple-700 px-4 py-2 rounded-lg text-xs font-bold hover:bg-purple-200 transition-colors flex items-center gap-1 disabled:opacity-50"
                 >
                   {seeding ? <Loader2 className="w-3 h-3 animate-spin" /> : "🌱"}
                   Seed Data Dummy
@@ -618,15 +702,15 @@ const FinanceManager = ({ role, user }) => {
                 <button
                   onClick={clearDummyBillings}
                   disabled={seeding}
-                  className="bg-red-100 text-red-600 px-4 py-2 rounded-lg text-xs font-bold hover:bg-red-200 transition-colors flex items-center gap-1"
+                  className="bg-red-100 text-red-600 px-4 py-2 rounded-lg text-xs font-bold hover:bg-red-200 transition-colors flex items-center gap-1 disabled:opacity-50"
                 >
                   {seeding ? <Loader2 className="w-3 h-3 animate-spin" /> : "🗑️"}
                   Hapus Data Dummy
                 </button>
               </div>
-              {!isRW && (
+              {!perms.isRW && (
                 <p className="text-xs text-amber-600 mt-2">
-                  ⚠️ Anda login sebagai RT {role?.id}. Setelah seed, hanya data RT Anda yang akan muncul.
+                  ⚠️ Anda login sebagai RT {perms.rtNumber}. Setelah seed, hanya data RT Anda yang akan muncul.
                 </p>
               )}
             </div>
@@ -646,12 +730,12 @@ const FinanceManager = ({ role, user }) => {
                     </th>
                     <th className="p-4 text-center">Status</th>
                     {/* Kolom Aksi hanya untuk RW */}
-                    {isRW && <th className="p-4 text-center">Aksi</th>}
+                    {perms.isRW && <th className="p-4 text-center">Aksi</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {filteredBillings.map((b) => (
-                    <tr key={b.id} className="border-b">
+                    <tr key={b.id} className="border-b hover:bg-slate-50">
                       <td className="p-4">{b.residentName}</td>
                       <td className="p-4">{b.unit}</td>
                       <td className="p-4">{b.period}</td>
@@ -677,7 +761,7 @@ const FinanceManager = ({ role, user }) => {
                         </div>
                       </td>
                       {/* Tombol Aksi hanya untuk RW */}
-                      {isRW && (
+                      {perms.isRW && (
                         <td className="p-4 text-center">
                           {b.status === "UNPAID" ? (
                             <button
@@ -703,9 +787,9 @@ const FinanceManager = ({ role, user }) => {
             </div>
           ) : (
             <div className="text-center py-8 text-slate-400">
-              {isRW 
+              {perms.isRW 
                 ? 'Belum ada tagihan. Klik tombol di atas untuk generate tagihan bulan ini.'
-                : `Tidak ada tagihan untuk warga di wilayah RT ${role?.id}.`
+                : `Tidak ada tagihan untuk warga di wilayah RT ${perms.rtNumber}.`
               }
             </div>
           )}
