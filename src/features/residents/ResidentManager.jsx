@@ -36,8 +36,8 @@ import { usePermissions } from "../../hooks/usePermissions";
  * CRUD operations for resident data (Data Warga)
  *
  * Permissions:
- * - RW: Can view all residents, full CRUD on all
- * - RT: Can only view/edit residents in their RT scope
+ * - RW: Can view all residents
+ * - RT: Can CRUD residents in their RT scope
  */
 const ResidentManager = ({ user }) => {
   // Permission system
@@ -66,7 +66,6 @@ const ResidentManager = ({ user }) => {
     family: [],
   });
   const [familyTemp, setFamilyTemp] = useState({ name: "", relation: "Istri" });
-  const [seeding, setSeeding] = useState(false); // For development tools
 
   // Realtime listener for residents collection with scope filtering
   useEffect(() => {
@@ -172,8 +171,10 @@ const ResidentManager = ({ user }) => {
     try {
       // Logic for Final Unit String
       // Combine unit input "A1/10" with RT "01" -> "A1/10 (RT 01)"
-      const rtNum = perms.isRT ? perms.rtNumber : formData.rt;
-      const pureUnit = formData.unit.replace(/ \(RT \d+\)$/, ""); // clean first
+      const rtNum = perms.isRT ? (perms.rtNumber || formData.rt) : formData.rt;
+      
+      // Robust regex to clean existing RT suffix (handles " (RT 01)", "(RT.01)", etc)
+      const pureUnit = formData.unit.replace(/\s*\(RT.*?\)$/i, "").trim(); 
 
       // If user forgot to put RT in unit string, append it standardly
       const finalUnit = `${pureUnit} (RT ${rtNum})`;
@@ -196,6 +197,8 @@ const ResidentManager = ({ user }) => {
         family: finalFamily,
       };
 
+      console.log("Saving resident payload:", payload);
+
       if (isEditMode && editingId) {
         // Update existing resident
         await updateDoc(
@@ -213,6 +216,34 @@ const ResidentManager = ({ user }) => {
             updatedAt: new Date().toISOString(),
           },
         );
+
+        // SYNC to User Profile if linked
+        const currentResident = residents.find((r) => r.id === editingId);
+        if (currentResident?.linkedUid) {
+          try {
+            await updateDoc(
+              doc(
+                db,
+                "artifacts",
+                APP_ID,
+                "users",
+                currentResident.linkedUid,
+                "profile",
+                "main",
+              ),
+              {
+                ...payload,
+                updatedAt: new Date().toISOString(),
+              },
+            );
+            console.log("Synced update to User Profile:", currentResident.linkedUid);
+          } catch (syncErr) {
+            console.error("Failed to sync user profile:", syncErr);
+            // Non-blocking error, user still updated in main list
+          }
+        }
+
+        alert("Data warga berhasil diperbarui (Sinkronasi Akun OK)!");
       } else {
         // Create new resident
         await addDoc(
@@ -222,12 +253,13 @@ const ResidentManager = ({ user }) => {
             createdAt: new Date().toISOString(),
           },
         );
+        alert("Warga baru berhasil ditambahkan!");
       }
       setIsModalOpen(false);
       resetForm();
     } catch (error) {
       console.error("Error saving resident:", error);
-      alert("Gagal menyimpan data warga!");
+      alert("Gagal menyimpan data warga! Error: " + error.message);
     }
   };
 
@@ -315,170 +347,6 @@ const ResidentManager = ({ user }) => {
         return "bg-orange-100 text-orange-700";
       default:
         return "bg-gray-100 text-gray-700";
-    }
-  };
-
-  // ========== DEVELOPMENT TOOLS ==========
-  const seedResidents = async () => {
-    if (
-      !confirm(
-        "Ini akan menambahkan 2 data warga RT 01 untuk testing.\n\nLanjutkan?",
-      )
-    )
-      return;
-
-    setSeeding(true);
-    try {
-      const dummyResidents = [
-        {
-          name: "Budi Santoso",
-          unit: "A-01 (RT 01)",
-          rt: "01",
-          phone: "08123456001",
-          job: "Wiraswasta",
-          status: "Tetap",
-          family: [
-            { name: "Siti Aminah", relation: "Istri" },
-            { name: "Ahmad Budi", relation: "Anak" },
-          ],
-        },
-        {
-          name: "Ani Wijaya",
-          unit: "A-02 (RT 01)",
-          rt: "01",
-          phone: "08123456002",
-          job: "Guru/Dosen",
-          status: "Tetap",
-          family: [
-            { name: "Hendra Wijaya", relation: "Suami" },
-            { name: "Rizky Wijaya", relation: "Anak" },
-          ],
-        },
-      ];
-
-      const residentsRef = collection(
-        db,
-        "artifacts",
-        APP_ID,
-        "public",
-        "data",
-        "residents",
-      );
-      let count = 0;
-
-      for (const resident of dummyResidents) {
-        await addDoc(residentsRef, {
-          ...resident,
-          createdAt: new Date().toISOString(),
-          isDummy: true,
-        });
-        count++;
-      }
-
-      alert(
-        `✅ Berhasil membuat ${count} data warga RT 01!\n\n• Budi Santoso (A-01)\n• Ani Wijaya (A-02)\n\nSekarang bisa generate tagihan IPL!`,
-      );
-    } catch (err) {
-      console.error(err);
-      alert("Gagal membuat data warga: " + err.message);
-    } finally {
-      setSeeding(false);
-    }
-  };
-
-  const clearDummyResidents = async () => {
-    if (
-      !confirm(
-        "Hapus semua data warga dummy?\n\nData asli tidak akan terhapus.",
-      )
-    )
-      return;
-
-    setSeeding(true);
-    try {
-      const residentsRef = collection(
-        db,
-        "artifacts",
-        APP_ID,
-        "public",
-        "data",
-        "residents",
-      );
-      const q = query(residentsRef, where("isDummy", "==", true));
-      const snapshot = await getDocs(q);
-
-      let deletedCount = 0;
-      for (const docSnap of snapshot.docs) {
-        await deleteDoc(
-          doc(
-            db,
-            "artifacts",
-            APP_ID,
-            "public",
-            "data",
-            "residents",
-            docSnap.id,
-          ),
-        );
-        deletedCount++;
-      }
-
-      alert(`🗑️ Berhasil menghapus ${deletedCount} data warga dummy.`);
-    } catch (err) {
-      console.error(err);
-      alert("Gagal menghapus data dummy: " + err.message);
-    } finally {
-      setSeeding(false);
-    }
-  };
-
-  const clearAllResidents = async () => {
-    if (
-      !confirm(
-        "⚠️ PERHATIAN!\n\nIni akan MENGHAPUS SEMUA data warga (termasuk data asli)!\n\nGunakan ini hanya untuk reset development.\n\nLanjutkan?",
-      )
-    )
-      return;
-
-    // Double confirmation
-    if (!confirm("Anda yakin? Semua data warga akan hilang permanen!")) return;
-
-    setSeeding(true);
-    try {
-      const residentsRef = collection(
-        db,
-        "artifacts",
-        APP_ID,
-        "public",
-        "data",
-        "residents",
-      );
-      const snapshot = await getDocs(residentsRef);
-
-      let deletedCount = 0;
-      for (const docSnap of snapshot.docs) {
-        await deleteDoc(
-          doc(
-            db,
-            "artifacts",
-            APP_ID,
-            "public",
-            "data",
-            "residents",
-            docSnap.id,
-          ),
-        );
-        deletedCount++;
-      }
-
-      alert(
-        `🗑️ Database berhasil di-reset!\n\nDihapus: ${deletedCount} data warga\n\nDatabase sekarang kosong.`,
-      );
-    } catch (err) {
-      console.error(err);
-      alert("Gagal reset database: " + err.message);
-    } finally {
-      setSeeding(false);
     }
   };
 
@@ -1180,69 +1048,6 @@ const ResidentManager = ({ user }) => {
             </tbody>
           </table>
         </div>
-      </div>
-
-      {/* Development Tools */}
-      <div className="mt-6 p-4 bg-slate-50 border border-dashed border-slate-300 rounded-xl">
-        <p className="text-xs text-slate-500 mb-3 font-semibold">
-          🔧 Development Tools - Data Warga (Hapus sebelum production)
-        </p>
-
-        {/* Seed Section */}
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <p className="text-xs font-bold text-blue-800 mb-2">
-            🌱 Seed Data Warga (Testing IPL)
-          </p>
-          <p className="text-xs text-blue-700 mb-2">
-            Buat 2 data warga RT 01 untuk testing fitur tagihan IPL.
-          </p>
-          <button
-            onClick={seedResidents}
-            disabled={seeding}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {seeding ? <Loader2 className="w-3 h-3 animate-spin" /> : "🌱"}
-            Seed 2 Warga RT 01
-          </button>
-        </div>
-
-        {/* Clear Section */}
-        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-          <p className="text-xs font-bold text-amber-800 mb-2">
-            ⚠️ Reset Database
-          </p>
-          <p className="text-xs text-amber-700 mb-3">
-            Pilih opsi sesuai kebutuhan:
-          </p>
-          <div className="flex gap-2 flex-wrap">
-            <button
-              onClick={clearDummyResidents}
-              disabled={seeding}
-              className="bg-orange-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-orange-700 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {seeding ? <Loader2 className="w-3 h-3 animate-spin" /> : "🗑️"}
-              Hapus Data Dummy Saja
-            </button>
-            <button
-              onClick={clearAllResidents}
-              disabled={seeding}
-              className="bg-red-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-red-700 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {seeding ? <Loader2 className="w-3 h-3 animate-spin" /> : "🗑️"}
-              Reset SEMUA Data
-            </button>
-          </div>
-          <p className="text-xs text-amber-600 mt-2">
-            ⚠️ "Reset SEMUA Data" akan menghapus data asli juga. Gunakan dengan
-            hati-hati!
-          </p>
-        </div>
-
-        {/* Info */}
-        <p className="text-xs text-slate-500 mt-2">
-          ℹ️ Tools ini untuk development saja. Hapus section ini sebelum
-          production.
-        </p>
       </div>
     </div>
   );
