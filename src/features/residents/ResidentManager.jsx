@@ -36,8 +36,8 @@ import { usePermissions } from "../../hooks/usePermissions";
  * CRUD operations for resident data (Data Warga)
  *
  * Permissions:
- * - RW: Can view all residents, full CRUD on all
- * - RT: Can only view/edit residents in their RT scope
+ * - RW: Can view all residents
+ * - RT: Can CRUD residents in their RT scope
  */
 const ResidentManager = ({ user }) => {
   // Permission system
@@ -171,8 +171,10 @@ const ResidentManager = ({ user }) => {
     try {
       // Logic for Final Unit String
       // Combine unit input "A1/10" with RT "01" -> "A1/10 (RT 01)"
-      const rtNum = perms.isRT ? perms.rtNumber : formData.rt;
-      const pureUnit = formData.unit.replace(/ \(RT \d+\)$/, ""); // clean first
+      const rtNum = perms.isRT ? (perms.rtNumber || formData.rt) : formData.rt;
+      
+      // Robust regex to clean existing RT suffix (handles " (RT 01)", "(RT.01)", etc)
+      const pureUnit = formData.unit.replace(/\s*\(RT.*?\)$/i, "").trim(); 
 
       // If user forgot to put RT in unit string, append it standardly
       const finalUnit = `${pureUnit} (RT ${rtNum})`;
@@ -195,6 +197,8 @@ const ResidentManager = ({ user }) => {
         family: finalFamily,
       };
 
+      console.log("Saving resident payload:", payload);
+
       if (isEditMode && editingId) {
         // Update existing resident
         await updateDoc(
@@ -212,6 +216,34 @@ const ResidentManager = ({ user }) => {
             updatedAt: new Date().toISOString(),
           },
         );
+
+        // SYNC to User Profile if linked
+        const currentResident = residents.find((r) => r.id === editingId);
+        if (currentResident?.linkedUid) {
+          try {
+            await updateDoc(
+              doc(
+                db,
+                "artifacts",
+                APP_ID,
+                "users",
+                currentResident.linkedUid,
+                "profile",
+                "main",
+              ),
+              {
+                ...payload,
+                updatedAt: new Date().toISOString(),
+              },
+            );
+            console.log("Synced update to User Profile:", currentResident.linkedUid);
+          } catch (syncErr) {
+            console.error("Failed to sync user profile:", syncErr);
+            // Non-blocking error, user still updated in main list
+          }
+        }
+
+        alert("Data warga berhasil diperbarui (Sinkronasi Akun OK)!");
       } else {
         // Create new resident
         await addDoc(
@@ -221,12 +253,13 @@ const ResidentManager = ({ user }) => {
             createdAt: new Date().toISOString(),
           },
         );
+        alert("Warga baru berhasil ditambahkan!");
       }
       setIsModalOpen(false);
       resetForm();
     } catch (error) {
       console.error("Error saving resident:", error);
-      alert("Gagal menyimpan data warga!");
+      alert("Gagal menyimpan data warga! Error: " + error.message);
     }
   };
 
