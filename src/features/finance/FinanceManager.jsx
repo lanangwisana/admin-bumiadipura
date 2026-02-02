@@ -667,53 +667,6 @@ const FinanceManager = ({ user }) => {
                   : "Buat Tagihan Bulan Ini"}
               </button>
             )}
-            
-            {/* Seeder Buttons - Development Only */}
-            <div className="mt-4 pt-4 border-t border-dashed border-slate-200">
-              <p className="text-xs text-slate-400 mb-3 font-semibold">🔧 Development Tools (Hapus sebelum production)</p>
-              
-              {/* Reset Database Section */}
-              <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                <p className="text-xs font-bold text-amber-800 mb-2">⚠️ Reset Database (Hapus Semua Tagihan)</p>
-                <p className="text-xs text-amber-700 mb-2">
-                  Gunakan ini untuk membersihkan semua tagihan lama.
-                </p>
-                <button
-                  onClick={clearAllBillings}
-                  disabled={seeding}
-                  className="bg-red-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-red-700 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {seeding ? <Loader2 className="w-3 h-3 animate-spin" /> : "🗑️"}
-                  Reset Semua Tagihan
-                </button>
-              </div>
-
-              {/* Seed Dummy Section */}
-              <p className="text-xs text-slate-500 mb-2 font-medium">Atau test dengan data dummy:</p>
-              <div className="flex gap-2 justify-center flex-wrap">
-                <button
-                  onClick={seedDummyBillings}
-                  disabled={seeding}
-                  className="bg-purple-100 text-purple-700 px-4 py-2 rounded-lg text-xs font-bold hover:bg-purple-200 transition-colors flex items-center gap-1 disabled:opacity-50"
-                >
-                  {seeding ? <Loader2 className="w-3 h-3 animate-spin" /> : "🌱"}
-                  Seed Data Dummy
-                </button>
-                <button
-                  onClick={clearDummyBillings}
-                  disabled={seeding}
-                  className="bg-red-100 text-red-600 px-4 py-2 rounded-lg text-xs font-bold hover:bg-red-200 transition-colors flex items-center gap-1 disabled:opacity-50"
-                >
-                  {seeding ? <Loader2 className="w-3 h-3 animate-spin" /> : "🗑️"}
-                  Hapus Data Dummy
-                </button>
-              </div>
-              {!perms.isRW && (
-                <p className="text-xs text-amber-600 mt-2">
-                  ⚠️ Anda login sebagai RT {perms.rtNumber}. Setelah seed, hanya data RT Anda yang akan muncul.
-                </p>
-              )}
-            </div>
           </div>
 
           {/* Billing Table */}
