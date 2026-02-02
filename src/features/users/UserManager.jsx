@@ -1,8 +1,95 @@
 import React, { useState, useEffect } from 'react';
-import { Trash2, Mail, User, Shield, AlertCircle, Lock, Eye, EyeOff, Loader2, CheckCircle } from 'lucide-react';
-import { collection, onSnapshot, addDoc, deleteDoc, doc } from 'firebase/firestore';
+import { Trash2, Mail, User, Shield, AlertCircle, Lock, Eye, EyeOff, Loader2, CheckCircle, Pencil, Save, X } from 'lucide-react';
+import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { db, APP_ID, secondaryAuth } from '../../config';
+
+const EditUserModal = ({ user, onClose, onUpdate, isProcessing }) => {
+    const [formData, setFormData] = useState({
+        name: user.name || '',
+        role: user.role || 'RT',
+        rtNumber: user.rtNumber || '01'
+    });
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        onUpdate(user.id, formData);
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
+            <div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                        <Pencil className="w-5 h-5 text-emerald-600"/>
+                        Edit Data Admin
+                    </h3>
+                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+                        <X className="w-5 h-5"/>
+                    </button>
+                </div>
+
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Email</label>
+                        <input value={user.email} disabled className="w-full p-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-slate-500 cursor-not-allowed"/>
+                        <p className="text-[10px] text-slate-400 mt-1">*Email tidak dapat diubah</p>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Nama Lengkap</label>
+                        <input 
+                            className="w-full p-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none" 
+                            value={formData.name} 
+                            onChange={e => setFormData({...formData, name: e.target.value})} 
+                            required
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Role</label>
+                        <select 
+                            className="w-full p-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none" 
+                            value={formData.role} 
+                            onChange={e => setFormData({...formData, role: e.target.value})}
+                        >
+                            <option value="RT">Ketua RT</option>
+                            <option value="RW">Pengurus RW</option>
+                        </select>
+                    </div>
+
+                    {formData.role === 'RT' && (
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Wilayah RT</label>
+                            <select 
+                                className="w-full p-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none" 
+                                value={formData.rtNumber} 
+                                onChange={e => setFormData({...formData, rtNumber: e.target.value})}
+                            >
+                                {[1,2,3,4,5,6,7,8].map(n => (
+                                    <option key={n} value={`0${n}`}>RT 0{n}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+
+                    <div className="flex gap-3 pt-2">
+                        <button type="button" onClick={onClose} className="flex-1 px-4 py-2 bg-slate-100 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-200">
+                            Batal
+                        </button>
+                        <button 
+                            type="submit" 
+                            disabled={isProcessing}
+                            className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 flex items-center justify-center gap-2"
+                        >
+                            {isProcessing ? <Loader2 className="w-4 h-4 animate-spin"/> : <><Save className="w-4 h-4"/> Simpan</>}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
 
 const UserManager = () => {
     const [users, setUsers] = useState([]);
@@ -17,6 +104,9 @@ const UserManager = () => {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [loading, setLoading] = useState(false);
+    const [editingUser, setEditingUser] = useState(null);
+    const [isEditing, setIsEditing] = useState(false);
+
     const [showPassword, setShowPassword] = useState(false);
     
     useEffect(() => {
@@ -110,6 +200,27 @@ const UserManager = () => {
             }
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleUpdateUser = async (userId, updatedData) => {
+        setIsEditing(true);
+        try {
+            // Update Firestore
+            await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'admin_accounts', userId), {
+                name: updatedData.name,
+                role: updatedData.role,
+                rtNumber: updatedData.role === 'RT' ? updatedData.rtNumber : '00'
+            });
+
+            setSuccess(`User "${updatedData.name}" berhasil diperbarui!`);
+            setEditingUser(null); // Close modal
+            setTimeout(() => setSuccess(''), 5000);
+        } catch (err) {
+            console.error(err);
+            alert("Gagal memperbarui data user: " + err.message);
+        } finally {
+            setIsEditing(false);
         }
     };
 
@@ -331,13 +442,22 @@ const UserManager = () => {
                                                     </span>
                                                 </td>
                                                 <td className="p-4 text-center">
-                                                    <button 
-                                                        onClick={() => handleDelete(u)} 
-                                                        className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition-colors"
-                                                        title="Hapus user"
-                                                    >
-                                                        <Trash2 className="w-4 h-4"/>
-                                                    </button>
+                                                    <div className="flex items-center justify-center gap-2">
+                                                        <button 
+                                                            onClick={() => setEditingUser(u)}
+                                                            className="text-amber-400 hover:text-amber-600 p-2 hover:bg-amber-50 rounded-lg transition-colors"
+                                                            title="Edit user"
+                                                        >
+                                                            <Pencil className="w-4 h-4"/>
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => handleDelete(u)} 
+                                                            className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition-colors"
+                                                            title="Hapus user"
+                                                        >
+                                                            <Trash2 className="w-4 h-4"/>
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))
@@ -348,6 +468,16 @@ const UserManager = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Edit Modal */}
+            {editingUser && (
+                <EditUserModal 
+                    user={editingUser} 
+                    onClose={() => setEditingUser(null)} 
+                    onUpdate={handleUpdateUser}
+                    isProcessing={isEditing}
+                />
+            )}
         </div>
     );
 };
