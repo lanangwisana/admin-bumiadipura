@@ -14,7 +14,7 @@ const ContentManager = ({ user, role }) => {
     const [activeTab, setActiveTab] = useState('events');
     
     // State untuk form
-    const [formEvent, setFormEvent] = useState({ title: '', date: '', location: '', category: 'Umum' });
+    const [formEvent, setFormEvent] = useState({ title: '', date: '', location: '', category: 'Umum', time: '' });
     const [formNews, setFormNews] = useState({ title: '', content: '', category: 'Pengumuman' });
 
     // Helper: Get color based on category (News)
@@ -140,7 +140,7 @@ const ContentManager = ({ user, role }) => {
             createdByUid: user?.uid || null,
             createdByName: role?.label || 'Unknown'
         }); 
-        setFormEvent({ title: '', date: '', location: '', category: 'Umum' }); 
+        setFormEvent({ title: '', date: '', location: '', category: 'Umum', time: '' }); 
         alert("Kegiatan tersimpan!"); 
     };
 
@@ -162,7 +162,7 @@ const ContentManager = ({ user, role }) => {
             updatedAt: new Date().toISOString()
         });
         
-        setFormEvent({ title: '', date: '', location: '', category: 'Umum' });
+        setFormEvent({ title: '', date: '', location: '', category: 'Umum', time: '' });
         setEditingEventId(null);
         alert("Kegiatan berhasil diperbarui!");
     };
@@ -249,7 +249,8 @@ const ContentManager = ({ user, role }) => {
             title: ev.title || '',
             date: ev.date || '',
             location: ev.location || '',
-            category: ev.category || 'Umum'
+            category: ev.category || 'Umum',
+            time: ev.time || ''
         });
         setEditingEventId(ev.id);
     };
@@ -271,7 +272,7 @@ const ContentManager = ({ user, role }) => {
 
     // Cancel Edit
     const cancelEditEvent = () => {
-        setFormEvent({ title: '', date: '', location: '', category: 'Umum' });
+        setFormEvent({ title: '', date: '', location: '', category: 'Umum', time: '' });
         setEditingEventId(null);
     };
 
@@ -354,6 +355,26 @@ const ContentManager = ({ user, role }) => {
                                 <option>Kerja Bakti</option>
                                 <option>Hiburan</option>
                             </select>
+                            <div className="space-y-2 pt-1">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Jam Kegiatan</label>
+                                <input 
+                                    type="time"
+                                    className="w-full p-2 border rounded-lg text-sm bg-white disabled:opacity-50 disabled:bg-slate-50" 
+                                    value={formEvent.time || ''} 
+                                    onChange={e => setFormEvent({...formEvent, time: e.target.value})}
+                                    disabled={formEvent.time === null}
+                                />
+                                <div className="flex items-center gap-2 px-1">
+                                    <input 
+                                        type="checkbox" 
+                                        id="timeAdjustable"
+                                        className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                        checked={formEvent.time === null}
+                                        onChange={e => setFormEvent({...formEvent, time: e.target.checked ? null : ''})}
+                                    />
+                                    <label htmlFor="timeAdjustable" className="text-xs text-slate-600 font-medium cursor-pointer">Waktu Menyesuaikan</label>
+                                </div>
+                            </div>
                             <button 
                                 type="submit"
                                 className={`w-full py-2 rounded-lg font-bold text-sm text-white ${
@@ -387,7 +408,9 @@ const ContentManager = ({ user, role }) => {
                                         </span>
                                         <CreatorBadge createdBy={ev.createdBy} />
                                         <h4 className="font-bold text-slate-800">{ev.title}</h4>
-                                        <p className="text-xs text-slate-500">{formatEventDate(ev.date)} - {ev.location}</p>
+                                        <p className="text-xs text-slate-500">
+                                            {formatEventDate(ev.date)} {ev.time ? `(${ev.time})` : ev.time === null ? '(Waktu Menyesuaikan)' : ''} - {ev.location}
+                                        </p>
                                     </div>
                                     <div className="flex gap-2">
                                         {/* Tombol hapus hanya muncul jika punya akses */}
@@ -506,7 +529,9 @@ const ContentManager = ({ user, role }) => {
                                                 {ev.category}
                                             </span>
                                         </td>
-                                        <td className="p-4 text-slate-500 text-xs">{formatEventDate(ev.date)}</td>
+                                        <td className="p-4 text-slate-500 text-xs">
+                                            {formatEventDate(ev.date)} {ev.time ? `(${ev.time})` : ev.time === null ? '(Menyesuaikan)' : ''}
+                                        </td>
                                         <td className="p-4 text-slate-500 text-xs">{ev.location}</td>
                                         <td className="p-4">
                                             <div className="flex gap-2 justify-center">
