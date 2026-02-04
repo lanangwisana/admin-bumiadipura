@@ -13,6 +13,8 @@ const ContentManager = ({ user, role }) => {
     const [news, setNews] = useState([]);
     const [activeTab, setActiveTab] = useState('events');
     const [previewImageUrl, setPreviewImageUrl] = useState(null);
+    const [recentEventsPage, setRecentEventsPage] = useState(1);
+    const RECENT_PER_PAGE = 5;
     
     // State untuk form
     const [formEvent, setFormEvent] = useState({ title: '', date: '', location: '', category: 'Umum', time: '', image: null });
@@ -543,11 +545,34 @@ const ContentManager = ({ user, role }) => {
                         </form>
                     </div>
                     
-                    {/* Events List - 3 Terbaru */}
                     <div className="md:col-span-2 space-y-4">
                         <div className="space-y-3">
-                            <h4 className="text-sm font-bold text-slate-600">Kegiatan Terbaru</h4>
-                            {events.slice(0, 3).map(ev => (
+                            <div className="flex justify-between items-center px-1">
+                                <h4 className="text-sm font-bold text-slate-600">Kegiatan Terbaru</h4>
+                                {events.length > RECENT_PER_PAGE && (
+                                    <div className="flex items-center gap-1 bg-white border border-slate-100 rounded-lg p-0.5">
+                                        <button 
+                                            onClick={() => setRecentEventsPage(p => Math.max(1, p - 1))}
+                                            disabled={recentEventsPage === 1}
+                                            className="p-1 text-slate-400 hover:text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                        >
+                                            <ChevronLeft className="w-4 h-4" />
+                                        </button>
+                                        <span className="text-[10px] font-bold text-slate-500 px-1 min-w-[3rem] text-center">
+                                            {recentEventsPage} / {Math.ceil(events.length / RECENT_PER_PAGE)}
+                                        </span>
+                                        <button 
+                                            onClick={() => setRecentEventsPage(p => Math.min(Math.ceil(events.length / RECENT_PER_PAGE), p + 1))}
+                                            disabled={recentEventsPage === Math.ceil(events.length / RECENT_PER_PAGE)}
+                                            className="p-1 text-slate-400 hover:text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                        >
+                                            <ChevronRight className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                            
+                            {events.slice((recentEventsPage - 1) * RECENT_PER_PAGE, recentEventsPage * RECENT_PER_PAGE).map(ev => (
                                 <div 
                                     key={ev.id} 
                                     onClick={() => handleClickEvent(ev)}
@@ -599,16 +624,16 @@ const ContentManager = ({ user, role }) => {
                 </div>
 
                 {/* Events History Table - Full Width */}
-                {events.length > 3 && (
+                {events.length > RECENT_PER_PAGE && (
                     <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden mt-6">
                         <div className="p-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
                             <div className="flex items-center gap-3">
                                 <h4 className="text-sm font-bold text-slate-700">Riwayat Kegiatan</h4>
-                                <span className="text-xs text-slate-400">({events.slice(3).length} data)</span>
+                                <span className="text-xs text-slate-400">({events.slice(RECENT_PER_PAGE).length} data)</span>
                             </div>
                             {/* Pagination - Modern Style */}
                             {(() => {
-                                const totalPages = Math.ceil(events.slice(3).length / HISTORY_PER_PAGE);
+                                const totalPages = Math.ceil(events.slice(RECENT_PER_PAGE).length / HISTORY_PER_PAGE);
                                 if (totalPages <= 1) return null;
                                 
                                 const renderPageButton = (page) => (
@@ -676,7 +701,7 @@ const ContentManager = ({ user, role }) => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {events.slice(3).slice((eventsHistoryPage - 1) * HISTORY_PER_PAGE, eventsHistoryPage * HISTORY_PER_PAGE).map(ev => (
+                                {events.slice(RECENT_PER_PAGE).slice((eventsHistoryPage - 1) * HISTORY_PER_PAGE, eventsHistoryPage * HISTORY_PER_PAGE).map(ev => (
                                     <tr 
                                         key={ev.id} 
                                         onClick={() => handleClickEvent(ev)}
