@@ -49,7 +49,8 @@ export const DatePicker = ({ value, onChange, placeholder = "Pilih Tanggal" }) =
 
     // Select date
     const selectDate = (day) => {
-        const newDate = new Date(viewDate.getFullYear(), viewDate.getMonth(), day);
+        // Create date at 00:00:00 in local time to avoid timezone offset shifts
+        const newDate = new Date(viewDate.getFullYear(), viewDate.getMonth(), day, 0, 0, 0, 0);
         onChange(newDate.toISOString());
         setIsOpen(false);
     };
