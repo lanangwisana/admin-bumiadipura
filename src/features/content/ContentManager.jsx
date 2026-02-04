@@ -98,10 +98,12 @@ const ContentManager = ({ user, role }) => {
         const unsubEvents = onSnapshot(eventsQuery, (s) => {
             let allEvents = s.docs.map(d => ({id: d.id, ...d.data()}));
             
-            // FILTER UNTUK RT: Hanya lihat miliknya sendiri
+            // FILTER UNTUK RT: Lihat miliknya sendiri DAN kiriman RW (Global)
             if (role?.type === 'RT') {
                 const rtId = `RT${role.id}`;
-                allEvents = allEvents.filter(ev => ev.createdBy === rtId);
+                allEvents = allEvents.filter(ev => 
+                    ev.createdBy === rtId || ev.createdBy === 'RW'
+                );
             }
             
             setEvents(allEvents);
