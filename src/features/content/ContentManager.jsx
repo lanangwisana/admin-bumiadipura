@@ -198,7 +198,14 @@ const ContentManager = ({ user, role }) => {
     // CREATE Event
     const handleAddEvent = async (e) => { 
         e.preventDefault(); 
-        if (!formEvent.title || !formEvent.date) return alert("Hanya field gambar & jam yang opsional!");
+        
+        // Validasi SEMUA field wajib diisi
+        const isTimeValid = formEvent.time !== ''; // Bisa null (menyesuaikan) tapi tidak boleh string kosong
+        const isImageValid = formEvent.image !== null; // Harus ada gambar (custom atau default)
+
+        if (!formEvent.title || !formEvent.date || !formEvent.location || !formEvent.category || !isTimeValid || !isImageValid) {
+            return alert("Semua field (Judul, Tanggal, Lokasi, Kategori, Jam, & Gambar) wajib diisi!");
+        }
 
         await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'events'), {
             ...formEvent,
@@ -223,6 +230,14 @@ const ContentManager = ({ user, role }) => {
             alert("⛔ Anda tidak memiliki akses untuk mengedit kegiatan ini!");
             cancelEditEvent();
             return;
+        }
+
+        // Validasi SEMUA field wajib diisi
+        const isTimeValid = formEvent.time !== ''; 
+        const isImageValid = formEvent.image !== null;
+
+        if (!formEvent.title || !formEvent.date || !formEvent.location || !formEvent.category || !isTimeValid || !isImageValid) {
+            return alert("Semua field wajib diisi untuk memperbarui kegiatan!");
         }
         
         await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'events', editingEventId), {
