@@ -1,9 +1,9 @@
 // Page Manajemen Informasi & Kegiatan
 // CRUD Operations: Create, Read, Update, Delete for Events & News
 import React, { useState, useEffect } from 'react';
-import { Trash2, Edit2, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Trash2, Edit2, X, ChevronLeft, ChevronRight, Image as ImageIcon } from 'lucide-react';
 import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, query, orderBy } from 'firebase/firestore';
-import { db, APP_ID } from '../../config';
+import { db, APP_ID, DEFAULT_EVENT_IMAGE } from '../../config';
 import { formatDate, formatEventDate } from '../../utils';
 import { DatePicker } from '../../components/ui/DatePicker';
 
@@ -12,9 +12,10 @@ const ContentManager = ({ user, role }) => {
     const [events, setEvents] = useState([]);
     const [news, setNews] = useState([]);
     const [activeTab, setActiveTab] = useState('events');
+    const [previewImageUrl, setPreviewImageUrl] = useState(null);
     
     // State untuk form
-    const [formEvent, setFormEvent] = useState({ title: '', date: '', location: '', category: 'Umum', time: '' });
+    const [formEvent, setFormEvent] = useState({ title: '', date: '', location: '', category: 'Umum', time: '', image: null });
     const [formNews, setFormNews] = useState({ title: '', content: '', category: 'Pengumuman' });
 
     // Helper: Get color based on category (News)
@@ -40,6 +41,24 @@ const ContentManager = ({ user, role }) => {
             'Hiburan': 'bg-pink-100 text-pink-700'
         };
         return colors[cat] || 'bg-slate-100 text-slate-700';
+    };
+
+    const ImagePreviewModal = ({ url, onClose }) => {
+        if (!url) return null;
+        return (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in" onClick={onClose}>
+                <div className="relative max-w-4xl w-full flex flex-col items-center" onClick={e => e.stopPropagation()}>
+                    <button 
+                        onClick={onClose}
+                        className="absolute -top-12 right-0 p-2 text-white hover:text-slate-300 transition-colors"
+                    >
+                        <X className="w-8 h-8" />
+                    </button>
+                    <img src={url} alt="Large preview" className="max-w-full max-h-[80vh] rounded-xl shadow-2xl object-contain bg-white" />
+                    <p className="mt-4 text-white font-medium">Pratinjau Gambar Lampiran</p>
+                </div>
+            </div>
+        );
     };
 
     // Helper: Creator Badge Component
@@ -129,9 +148,58 @@ const ContentManager = ({ user, role }) => {
         return () => { unsubEvents(); unsubNews(); };
     }, [user, role]);
 
+    // Function untuk kompres gambar
+    const compressImage = (file) => {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+
+                    // Maksimal dimensi 1200px (untuk menjaga kualitas tapi ukuran kecil)
+                    const MAX_WIDTH = 1000;
+                    if (width > MAX_WIDTH) {
+                        height = (MAX_WIDTH / width) * height;
+                        width = MAX_WIDTH;
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    // Kompresi ke 0.6 quality (biasanya menghasilkan < 200KB)
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+                    resolve(dataUrl);
+                };
+            };
+        });
+    };
+
+    const handleImageChange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Validasi tipe file
+        if (!file.type.startsWith('image/')) {
+            alert("File harus berupa gambar!");
+            return;
+        }
+
+        const compressed = await compressImage(file);
+        setFormEvent({ ...formEvent, image: compressed });
+    };
+
     // CREATE Event
     const handleAddEvent = async (e) => { 
         e.preventDefault(); 
+        if (!formEvent.title || !formEvent.date) return alert("Hanya field gambar & jam yang opsional!");
+
         await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'events'), {
             ...formEvent,
             createdAt: new Date().toISOString(),
@@ -140,7 +208,7 @@ const ContentManager = ({ user, role }) => {
             createdByUid: user?.uid || null,
             createdByName: role?.label || 'Unknown'
         }); 
-        setFormEvent({ title: '', date: '', location: '', category: 'Umum', time: '' }); 
+        setFormEvent({ title: '', date: '', location: '', category: 'Umum', time: '', image: null }); 
         alert("Kegiatan tersimpan!"); 
     };
 
@@ -162,7 +230,7 @@ const ContentManager = ({ user, role }) => {
             updatedAt: new Date().toISOString()
         });
         
-        setFormEvent({ title: '', date: '', location: '', category: 'Umum', time: '' });
+        setFormEvent({ title: '', date: '', location: '', category: 'Umum', time: '', image: null });
         setEditingEventId(null);
         alert("Kegiatan berhasil diperbarui!");
     };
@@ -250,7 +318,8 @@ const ContentManager = ({ user, role }) => {
             date: ev.date || '',
             location: ev.location || '',
             category: ev.category || 'Umum',
-            time: ev.time || ''
+            time: ev.time || '',
+            image: ev.image || null
         });
         setEditingEventId(ev.id);
     };
@@ -272,7 +341,7 @@ const ContentManager = ({ user, role }) => {
 
     // Cancel Edit
     const cancelEditEvent = () => {
-        setFormEvent({ title: '', date: '', location: '', category: 'Umum', time: '' });
+        setFormEvent({ title: '', date: '', location: '', category: 'Umum', time: '', image: null });
         setEditingEventId(null);
     };
 
@@ -375,6 +444,77 @@ const ContentManager = ({ user, role }) => {
                                     <label htmlFor="timeAdjustable" className="text-xs text-slate-600 font-medium cursor-pointer">Waktu Menyesuaikan</label>
                                 </div>
                             </div>
+
+                            {/* Image Attachment Section */}
+                            <div className="space-y-2 pt-1 border-t border-slate-100 mt-4">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1 block">Lampiran Gambar</label>
+                                
+                                {/* Baris 1: Upload Button & Delete */}
+                                <div className="flex gap-2 items-center">
+                                    <input 
+                                        type="file" 
+                                        id="event-image" 
+                                        className="hidden" 
+                                        accept="image/*"
+                                        onChange={handleImageChange}
+                                        disabled={formEvent.image === DEFAULT_EVENT_IMAGE}
+                                    />
+                                    <label 
+                                        htmlFor="event-image"
+                                        className={`flex-1 border-2 border-dashed rounded-lg p-2 text-center transition-all ${
+                                            formEvent.image === DEFAULT_EVENT_IMAGE 
+                                                ? 'bg-slate-50 border-slate-200 cursor-not-allowed opacity-60' 
+                                                : 'border-slate-200 cursor-pointer hover:border-emerald-300 hover:bg-emerald-50'
+                                        }`}
+                                    >
+                                        <div className="flex flex-col items-center gap-1">
+                                            <span className="text-xs font-bold text-slate-600">
+                                                {formEvent.image && formEvent.image !== DEFAULT_EVENT_IMAGE ? 'Ganti Gambar Custom' : 'Pilih Gambar Custom'}
+                                            </span>
+                                        </div>
+                                    </label>
+                                    
+                                    {formEvent.image && formEvent.image !== DEFAULT_EVENT_IMAGE && (
+                                        <button 
+                                            type="button"
+                                            onClick={() => setFormEvent({...formEvent, image: null})}
+                                            className="p-2 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 transition-colors"
+                                            title="Hapus Gambar"
+                                        >
+                                            <X className="w-4 h-4" />
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Baris 2: Checkbox Gambar Default */}
+                                <div className="flex items-center gap-2 px-1 py-1">
+                                    <input 
+                                        type="checkbox" 
+                                        id="useDefaultImage"
+                                        className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                        checked={formEvent.image === DEFAULT_EVENT_IMAGE}
+                                        onChange={e => {
+                                            if (e.target.checked) {
+                                                setFormEvent({ ...formEvent, image: DEFAULT_EVENT_IMAGE });
+                                            } else {
+                                                setFormEvent({ ...formEvent, image: null });
+                                            }
+                                        }}
+                                    />
+                                    <label htmlFor="useDefaultImage" className="text-xs text-slate-600 font-medium cursor-pointer italic">Gunakan Gambar Default</label>
+                                </div>
+                                {formEvent.image && (
+                                    <div className="mt-2 relative rounded-lg overflow-hidden border border-slate-100 h-24 w-full bg-slate-50">
+                                        <img src={formEvent.image} className="w-full h-full object-cover" alt="Preview"/>
+                                        {formEvent.image === DEFAULT_EVENT_IMAGE && (
+                                            <div className="absolute top-1 right-1 bg-emerald-600 text-white text-[8px] px-1.5 py-0.5 rounded-full font-bold shadow-sm">
+                                                DEFAULT
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
                             <button 
                                 type="submit"
                                 className={`w-full py-2 rounded-lg font-bold text-sm text-white ${
@@ -402,17 +542,30 @@ const ContentManager = ({ user, role }) => {
                                             : 'border-slate-100 hover:border-slate-300'
                                     }`}
                                 >
-                                    <div>
-                                        <span className={`text-[10px] px-2 py-0.5 rounded font-bold mb-1 inline-block ${getEventCategoryColor(ev.category)}`}>
-                                            {ev.category}
-                                        </span>
-                                        <CreatorBadge createdBy={ev.createdBy} />
-                                        <h4 className="font-bold text-slate-800">{ev.title}</h4>
+                                    <div className="flex-1">
+                                        <div className="flex items-start justify-between mb-1">
+                                            <span className={`text-[10px] px-2 py-0.5 rounded font-bold inline-block ${getEventCategoryColor(ev.category)}`}>
+                                                {ev.category}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <h4 className="font-bold text-slate-800">{ev.title}</h4>
+                                            <CreatorBadge createdBy={ev.createdBy} />
+                                        </div>
                                         <p className="text-xs text-slate-500">
                                             {formatEventDate(ev.date)} {ev.time ? `(${ev.time})` : ev.time === null ? '(Waktu Menyesuaikan)' : ''} - {ev.location}
                                         </p>
                                     </div>
-                                    <div className="flex gap-2">
+                                    <div className="flex gap-1 items-center">
+                                        {ev.image && (
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); setPreviewImageUrl(ev.image); }}
+                                                className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                                                title="Lihat Lampiran Gambar"
+                                            >
+                                                <ImageIcon className="w-4 h-4"/>
+                                            </button>
+                                        )}
                                         {/* Tombol hapus hanya muncul jika punya akses */}
                                         {canEditEvent(ev) && (
                                             <button 
@@ -519,7 +672,7 @@ const ContentManager = ({ user, role }) => {
                                         }`}
                                     >
                                         <td className="p-4">
-                                            <div className="flex items-center gap-2">
+                                            <div>
                                                 <p className="font-bold text-slate-800">{ev.title}</p>
                                                 <CreatorBadge createdBy={ev.createdBy} />
                                             </div>
@@ -534,7 +687,16 @@ const ContentManager = ({ user, role }) => {
                                         </td>
                                         <td className="p-4 text-slate-500 text-xs">{ev.location}</td>
                                         <td className="p-4">
-                                            <div className="flex gap-2 justify-center">
+                                            <div className="flex gap-1 justify-center items-center">
+                                                {ev.image && (
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); setPreviewImageUrl(ev.image); }}
+                                                        className="text-slate-400 hover:text-emerald-500 p-1"
+                                                        title="Lihat Gambar"
+                                                    >
+                                                        <ImageIcon className="w-4 h-4"/>
+                                                    </button>
+                                                )}
                                                 {/* Tombol hapus hanya muncul jika punya akses */}
                                                 {canEditEvent(ev) && (
                                                     <button 
@@ -791,6 +953,10 @@ const ContentManager = ({ user, role }) => {
                 )}
                 </>
             )}
+            <ImagePreviewModal 
+                url={previewImageUrl} 
+                onClose={() => setPreviewImageUrl(null)} 
+            />
         </div>
     );
 };
