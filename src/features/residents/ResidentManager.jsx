@@ -56,6 +56,7 @@ const ResidentManager = ({ user }) => {
     resident: null,
   });
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedRtFilter, setSelectedRtFilter] = useState("ALL");
   const [formData, setFormData] = useState({
     name: "",
     unit: "",
@@ -348,13 +349,34 @@ const ResidentManager = ({ user }) => {
     });
   };
 
-  // Filter residents by search term
-  const filteredResidents = residents.filter(
-    (r) =>
+  // Filter residents by search term and RT (for RW)
+  const filteredResidents = residents.filter((r) => {
+    // 1. Check Search Term
+    const matchesSearch =
       r.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       r.unit?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.phone?.includes(searchTerm),
-  );
+      r.phone?.includes(searchTerm);
+
+    // 2. Check RT Filter (only if RW and filter is not ALL)
+    let matchesRt = true;
+    if (perms.isRW && selectedRtFilter !== "ALL") {
+      if (r.rt) {
+        // New standard: check explicit RT field
+        matchesRt = r.rt === selectedRtFilter;
+      } else {
+        // Fallback: check unit string for "RT XX"
+        // Normalizes "RT01", "RT 01", "RT.01" to match selected "01"
+        const unitUpper = (r.unit || "").toUpperCase();
+        matchesRt =
+          unitUpper.includes(`RT${selectedRtFilter}`) ||
+          unitUpper.includes(`RT ${selectedRtFilter}`) ||
+          unitUpper.includes(`RT.${selectedRtFilter}`) ||
+          unitUpper.includes(`RT. ${selectedRtFilter}`);
+      }
+    }
+
+    return matchesSearch && matchesRt;
+  });
 
   // Get relation color
   const getRelationColor = (relation) => {
@@ -446,16 +468,40 @@ const ResidentManager = ({ user }) => {
         </div>
       )}
 
-      {/* Search Bar */}
-      <div className="relative">
-        <Search className="absolute left-4 top-3.5 w-5 h-5 text-slate-400" />
-        <input
-          type="text"
-          placeholder="Cari berdasarkan nama, unit, atau kontak..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-12 pr-4 py-3 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-sm"
-        />
+      {/* Search & Filter Bar */}
+      <div className="flex flex-col md:flex-row gap-4">
+        {/* RT Filter Dropdown (Only for RW) */}
+        {perms.isRW && (
+          <div className="w-full md:w-48 flex-shrink-0">
+             <select
+              value={selectedRtFilter}
+              onChange={(e) => setSelectedRtFilter(e.target.value)}
+              className="w-full p-3 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-sm font-medium text-slate-700 h-[46px]"
+            >
+              <option value="ALL">Semua RT</option>
+              {[...Array(10)].map((_, i) => {
+                const num = String(i + 1).padStart(2, "0");
+                return (
+                  <option key={num} value={num}>
+                    RT {num}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+        )}
+
+        {/* Search Input */}
+        <div className="relative flex-1">
+          <Search className="absolute left-4 top-3.5 w-5 h-5 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Cari berdasarkan nama, unit, atau kontak..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-12 pr-4 py-3 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-sm h-[46px]"
+          />
+        </div>
       </div>
 
       {/* Modal Create/Edit Warga */}
