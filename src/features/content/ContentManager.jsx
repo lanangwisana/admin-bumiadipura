@@ -75,27 +75,44 @@ const ContentManager = ({ user, role }) => {
 
     // READ (events and news) - Realtime listener
     useEffect(() => {
-        if (!user) return;
-        // Query events with orderBy createdAt descending (newest first)
+        if (!user || !role) return;
+
+        // Listener untuk Events
         const eventsQuery = query(
             collection(db, 'artifacts', APP_ID, 'public', 'data', 'events'),
             orderBy('createdAt', 'desc')
         );
-        const unsubEvents = onSnapshot(
-            eventsQuery, 
-            (s) => setEvents(s.docs.map(d => ({id: d.id, ...d.data()})))
-        );
-        // Query news with orderBy createdAt descending (newest first)
+        const unsubEvents = onSnapshot(eventsQuery, (s) => {
+            let allEvents = s.docs.map(d => ({id: d.id, ...d.data()}));
+            
+            // FILTER UNTUK RT: Hanya lihat miliknya sendiri
+            if (role?.type === 'RT') {
+                const rtId = `RT${role.id}`;
+                allEvents = allEvents.filter(ev => ev.createdBy === rtId);
+            }
+            
+            setEvents(allEvents);
+        });
+
+        // Listener untuk News
         const newsQuery = query(
             collection(db, 'artifacts', APP_ID, 'public', 'data', 'news'),
             orderBy('createdAt', 'desc')
         );
-        const unsubNews = onSnapshot(
-            newsQuery, 
-            (s) => setNews(s.docs.map(d => ({id: d.id, ...d.data()})))
-        );
+        const unsubNews = onSnapshot(newsQuery, (s) => {
+            let allNews = s.docs.map(d => ({id: d.id, ...d.data()}));
+            
+            // FILTER UNTUK RT: Hanya lihat miliknya sendiri
+            if (role?.type === 'RT') {
+                const rtId = `RT${role.id}`;
+                allNews = allNews.filter(n => n.createdBy === rtId);
+            }
+            
+            setNews(allNews);
+        });
+
         return () => { unsubEvents(); unsubNews(); };
-    }, [user]);
+    }, [user, role]);
 
     // CREATE Event
     const handleAddEvent = async (e) => { 
