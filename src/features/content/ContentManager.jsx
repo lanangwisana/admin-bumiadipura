@@ -41,6 +41,19 @@ const ContentManager = ({ user, role }) => {
         };
         return colors[cat] || 'bg-slate-100 text-slate-700';
     };
+
+    // Helper: Creator Badge Component
+    const CreatorBadge = ({ createdBy }) => {
+        if (!createdBy) return null;
+        const isRW = createdBy === 'RW';
+        return (
+            <span className={`text-[9px] px-2 py-0.5 rounded-full font-extrabold ml-1 uppercase tracking-tighter ${
+                isRW ? 'bg-indigo-600 text-white' : 'bg-orange-500 text-white'
+            }`}>
+                {isRW ? 'RW' : createdBy.replace('RT', 'RT ')}
+            </span>
+        );
+    };
     
     // State untuk Edit Mode
     const [editingEventId, setEditingEventId] = useState(null);
@@ -370,6 +383,7 @@ const ContentManager = ({ user, role }) => {
                                         <span className={`text-[10px] px-2 py-0.5 rounded font-bold mb-1 inline-block ${getEventCategoryColor(ev.category)}`}>
                                             {ev.category}
                                         </span>
+                                        <CreatorBadge createdBy={ev.createdBy} />
                                         <h4 className="font-bold text-slate-800">{ev.title}</h4>
                                         <p className="text-xs text-slate-500">{formatEventDate(ev.date)} - {ev.location}</p>
                                     </div>
@@ -480,7 +494,10 @@ const ContentManager = ({ user, role }) => {
                                         }`}
                                     >
                                         <td className="p-4">
-                                            <p className="font-bold text-slate-800">{ev.title}</p>
+                                            <div className="flex items-center gap-2">
+                                                <p className="font-bold text-slate-800">{ev.title}</p>
+                                                <CreatorBadge createdBy={ev.createdBy} />
+                                            </div>
                                         </td>
                                         <td className="p-4">
                                             <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${getEventCategoryColor(ev.category)}`}>
@@ -588,6 +605,7 @@ const ContentManager = ({ user, role }) => {
                                         <span className={`text-[10px] px-2 py-0.5 rounded font-bold mb-1 inline-block ${getCategoryColor(n.cat || 'Pengumuman')}`}>
                                             {n.cat || 'Pengumuman'}
                                         </span>
+                                        <CreatorBadge createdBy={n.createdBy} />
                                         <h4 className="font-bold text-slate-800">{n.title}</h4>
                                         <p className="text-xs text-slate-500">{formatDate(n.createdAt)} - Oleh {n.sender}</p>
                                     </div>
@@ -711,7 +729,10 @@ const ContentManager = ({ user, role }) => {
                                         }`}
                                     >
                                         <td className="p-4">
-                                            <p className="font-bold text-slate-800">{n.title}</p>
+                                            <div className="flex items-center gap-2">
+                                                <p className="font-bold text-slate-800">{n.title}</p>
+                                                <CreatorBadge createdBy={n.createdBy} />
+                                            </div>
                                         </td>
                                         <td className="p-4">
                                             <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${getCategoryColor(n.cat || 'Pengumuman')}`}>
