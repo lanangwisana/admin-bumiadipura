@@ -14,6 +14,7 @@ const ContentManager = ({ user, role }) => {
     const [activeTab, setActiveTab] = useState('events');
     const [previewImageUrl, setPreviewImageUrl] = useState(null);
     const [recentEventsPage, setRecentEventsPage] = useState(1);
+    const [recentNewsPage, setRecentNewsPage] = useState(1);
     const RECENT_PER_PAGE = 5;
     
     // State untuk form
@@ -138,10 +139,18 @@ const ContentManager = ({ user, role }) => {
         const unsubNews = onSnapshot(newsQuery, (s) => {
             let allNews = s.docs.map(d => ({id: d.id, ...d.data()}));
             
-            // FILTER UNTUK RT: Hanya lihat miliknya sendiri
+            // FILTER UNTUK RT: Lihat miliknya sendiri DAN kiriman RW (Global)
             if (role?.type === 'RT') {
                 const rtId = `RT${role.id}`;
-                allNews = allNews.filter(n => n.createdBy === rtId);
+                allNews = allNews.filter(n => n.createdBy === rtId || n.createdBy === 'RW');
+
+                // PIN: Letakkan berita RW terbaru di paling atas untuk RT
+                const latestRWNewsIndex = allNews.findIndex(n => n.createdBy === 'RW');
+                if (latestRWNewsIndex > 0) {
+                    const latestRW = allNews[latestRWNewsIndex];
+                    const otherNews = allNews.filter((_, idx) => idx !== latestRWNewsIndex);
+                    allNews = [latestRW, ...otherNews];
+                }
             }
             
             setNews(allNews);
@@ -255,13 +264,15 @@ const ContentManager = ({ user, role }) => {
     // CREATE News
     const handleAddNews = async (e) => { 
         e.preventDefault(); 
+        const now = new Date();
         await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'news'), { 
             title: formNews.title,
             content: formNews.content,
-            date: new Date().toLocaleDateString(), 
+            date: now.toLocaleDateString(), 
+            time: now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
             cat: formNews.category, 
             sender: role.label, 
-            createdAt: new Date().toISOString(), 
+            createdAt: now.toISOString(), 
             color: getCategoryColor(formNews.category),
             // Tambahkan info pembuat untuk access control
             createdBy: role?.type === 'RW' ? 'RW' : `RT${role?.id}`,
@@ -815,28 +826,64 @@ const ContentManager = ({ user, role }) => {
                         </form>
                     </div>
                     
-                    {/* News List (Kanan) */}
                     <div className="md:col-span-2 space-y-4">
-                        {/* 3 Berita Terbaru (Cards) */}
                         <div className="space-y-3">
-                            <h4 className="text-sm font-bold text-slate-600">Berita Terbaru</h4>
-                            {news.slice(0, 3).map(n => (
+                            <div className="flex justify-between items-center px-1">
+                                <h4 className="text-sm font-bold text-slate-600">Berita Terbaru</h4>
+                                {news.length > RECENT_PER_PAGE && (
+                                    <div className="flex items-center gap-1 bg-white border border-slate-100 rounded-lg p-0.5">
+                                        <button 
+                                            onClick={() => setRecentNewsPage(p => Math.max(1, p - 1))}
+                                            disabled={recentNewsPage === 1}
+                                            className="p-1 text-slate-400 hover:text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                        >
+                                            <ChevronLeft className="w-4 h-4" />
+                                        </button>
+                                        <span className="text-[10px] font-bold text-slate-500 px-1 min-w-[3rem] text-center">
+                                            {recentNewsPage} / {Math.ceil(news.length / RECENT_PER_PAGE)}
+                                        </span>
+                                        <button 
+                                            onClick={() => setRecentNewsPage(p => Math.min(Math.ceil(news.length / RECENT_PER_PAGE), p + 1))}
+                                            disabled={recentNewsPage === Math.ceil(news.length / RECENT_PER_PAGE)}
+                                            className="p-1 text-slate-400 hover:text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                        >
+                                            <ChevronRight className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                            
+                            {news.slice((recentNewsPage - 1) * RECENT_PER_PAGE, recentNewsPage * RECENT_PER_PAGE).map((n, idx) => {
+                                const isPinnedRW = role?.type === 'RT' && n.createdBy === 'RW' && idx === 0 && recentNewsPage === 1;
+                                
+                                return (
                                 <div 
                                     key={n.id} 
                                     onClick={() => handleClickNews(n)}
-                                    className={`bg-white p-4 rounded-xl shadow-sm border flex justify-between items-center cursor-pointer transition-all ${
+                                    className={`p-4 rounded-xl shadow-sm border flex justify-between items-center cursor-pointer transition-all ${
                                         editingNewsId === n.id 
                                             ? 'border-blue-500 ring-2 ring-blue-100' 
-                                            : 'border-slate-100 hover:border-slate-300'
+                                            : isPinnedRW 
+                                                ? 'bg-indigo-50/30 border-indigo-200 hover:border-indigo-300' 
+                                                : 'bg-white border-slate-100 hover:border-slate-300'
                                     }`}
                                 >
                                     <div>
-                                        <span className={`text-[10px] px-2 py-0.5 rounded font-bold mb-1 inline-block ${getCategoryColor(n.cat || 'Pengumuman')}`}>
-                                            {n.cat || 'Pengumuman'}
-                                        </span>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className={`text-[10px] px-2 py-0.5 rounded font-bold inline-block ${getCategoryColor(n.cat || 'Pengumuman')}`}>
+                                                {n.cat || 'Pengumuman'}
+                                            </span>
+                                            {isPinnedRW && (
+                                                <span className="text-[9px] font-black text-indigo-600 bg-white border border-indigo-100 rounded px-1.5 py-0.5 flex items-center gap-1">
+                                                    📌 Disematkan
+                                                </span>
+                                            )}
+                                        </div>
                                         <CreatorBadge createdBy={n.createdBy} />
                                         <h4 className="font-bold text-slate-800">{n.title}</h4>
-                                        <p className="text-xs text-slate-500">{formatDate(n.createdAt)} - Oleh {n.sender}</p>
+                                        <p className="text-xs text-slate-500">
+                                            {formatDate(n.createdAt)} - Oleh {n.sender}
+                                        </p>
                                     </div>
                                     <div className="flex gap-2">
                                         {/* Tombol hapus hanya muncul jika punya akses */}
@@ -851,21 +898,22 @@ const ContentManager = ({ user, role }) => {
                                         )}
                                     </div>
                                 </div>
-                            ))}
+                            );
+                        })}
                         </div>
                     </div>
                 </div>
                 {/* History Table - Full Width */}
-                {news.length > 3 && (
+                {news.length > RECENT_PER_PAGE && (
                     <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
                         <div className="p-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
                             <div className="flex items-center gap-3">
                                 <h4 className="text-sm font-bold text-slate-700">Riwayat Berita</h4>
-                                <span className="text-xs text-slate-400">({news.slice(3).length} data)</span>
+                                <span className="text-xs text-slate-400">({news.slice(RECENT_PER_PAGE).length} data)</span>
                             </div>
                             {/* Pagination - Modern Style */}
                             {(() => {
-                                const totalPages = Math.ceil(news.slice(3).length / HISTORY_PER_PAGE);
+                                const totalPages = Math.ceil(news.slice(RECENT_PER_PAGE).length / HISTORY_PER_PAGE);
                                 if (totalPages <= 1) return null;
                                 
                                 const renderPageButton = (page) => (
@@ -947,7 +995,7 @@ const ContentManager = ({ user, role }) => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {news.slice(3).slice((historyPage - 1) * HISTORY_PER_PAGE, historyPage * HISTORY_PER_PAGE).map(n => (
+                                {news.slice(RECENT_PER_PAGE).slice((historyPage - 1) * HISTORY_PER_PAGE, historyPage * HISTORY_PER_PAGE).map(n => (
                                     <tr 
                                         key={n.id} 
                                         onClick={() => handleClickNews(n)}
@@ -968,7 +1016,7 @@ const ContentManager = ({ user, role }) => {
                                                 {n.cat || 'Pengumuman'}
                                             </span>
                                         </td>
-                                        <td className="p-4 text-slate-500 text-xs">
+                                        <td className="p-4 text-slate-500 text-xs text-nowrap">
                                             {formatDate(n.createdAt)}
                                         </td>
                                         <td className="p-4">
