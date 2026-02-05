@@ -256,13 +256,15 @@ const ContentManager = ({ user, role }) => {
     // CREATE News
     const handleAddNews = async (e) => { 
         e.preventDefault(); 
+        const now = new Date();
         await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'news'), { 
             title: formNews.title,
             content: formNews.content,
-            date: new Date().toLocaleDateString(), 
+            date: now.toLocaleDateString(), 
+            time: now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
             cat: formNews.category, 
             sender: role.label, 
-            createdAt: new Date().toISOString(), 
+            createdAt: now.toISOString(), 
             color: getCategoryColor(formNews.category),
             // Tambahkan info pembuat untuk access control
             createdBy: role?.type === 'RW' ? 'RW' : `RT${role?.id}`,
@@ -859,7 +861,9 @@ const ContentManager = ({ user, role }) => {
                                         </span>
                                         <CreatorBadge createdBy={n.createdBy} />
                                         <h4 className="font-bold text-slate-800">{n.title}</h4>
-                                        <p className="text-xs text-slate-500">{formatDate(n.createdAt)} - Oleh {n.sender}</p>
+                                        <p className="text-xs text-slate-500">
+                                            {formatDate(n.createdAt)} {n.time && `• ${n.time}`} - Oleh {n.sender}
+                                        </p>
                                     </div>
                                     <div className="flex gap-2">
                                         {/* Tombol hapus hanya muncul jika punya akses */}
@@ -991,8 +995,8 @@ const ContentManager = ({ user, role }) => {
                                                 {n.cat || 'Pengumuman'}
                                             </span>
                                         </td>
-                                        <td className="p-4 text-slate-500 text-xs">
-                                            {formatDate(n.createdAt)}
+                                        <td className="p-4 text-slate-500 text-xs text-nowrap">
+                                            {formatDate(n.createdAt)} {n.time && <span className="opacity-60 ml-1">• {n.time}</span>}
                                         </td>
                                         <td className="p-4">
                                             <div className="flex gap-2 justify-center">
