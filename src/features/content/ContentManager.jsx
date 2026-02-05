@@ -143,6 +143,14 @@ const ContentManager = ({ user, role }) => {
             if (role?.type === 'RT') {
                 const rtId = `RT${role.id}`;
                 allNews = allNews.filter(n => n.createdBy === rtId || n.createdBy === 'RW');
+
+                // PIN: Letakkan berita RW terbaru di paling atas untuk RT
+                const latestRWNewsIndex = allNews.findIndex(n => n.createdBy === 'RW');
+                if (latestRWNewsIndex > 0) {
+                    const latestRW = allNews[latestRWNewsIndex];
+                    const otherNews = allNews.filter((_, idx) => idx !== latestRWNewsIndex);
+                    allNews = [latestRW, ...otherNews];
+                }
             }
             
             setNews(allNews);
@@ -845,20 +853,32 @@ const ContentManager = ({ user, role }) => {
                                 )}
                             </div>
                             
-                            {news.slice((recentNewsPage - 1) * RECENT_PER_PAGE, recentNewsPage * RECENT_PER_PAGE).map(n => (
+                            {news.slice((recentNewsPage - 1) * RECENT_PER_PAGE, recentNewsPage * RECENT_PER_PAGE).map((n, idx) => {
+                                const isPinnedRW = role?.type === 'RT' && n.createdBy === 'RW' && idx === 0 && recentNewsPage === 1;
+                                
+                                return (
                                 <div 
                                     key={n.id} 
                                     onClick={() => handleClickNews(n)}
-                                    className={`bg-white p-4 rounded-xl shadow-sm border flex justify-between items-center cursor-pointer transition-all ${
+                                    className={`p-4 rounded-xl shadow-sm border flex justify-between items-center cursor-pointer transition-all ${
                                         editingNewsId === n.id 
                                             ? 'border-blue-500 ring-2 ring-blue-100' 
-                                            : 'border-slate-100 hover:border-slate-300'
+                                            : isPinnedRW 
+                                                ? 'bg-indigo-50/30 border-indigo-200 hover:border-indigo-300' 
+                                                : 'bg-white border-slate-100 hover:border-slate-300'
                                     }`}
                                 >
                                     <div>
-                                        <span className={`text-[10px] px-2 py-0.5 rounded font-bold mb-1 inline-block ${getCategoryColor(n.cat || 'Pengumuman')}`}>
-                                            {n.cat || 'Pengumuman'}
-                                        </span>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className={`text-[10px] px-2 py-0.5 rounded font-bold inline-block ${getCategoryColor(n.cat || 'Pengumuman')}`}>
+                                                {n.cat || 'Pengumuman'}
+                                            </span>
+                                            {isPinnedRW && (
+                                                <span className="text-[9px] font-black text-indigo-600 bg-white border border-indigo-100 rounded px-1.5 py-0.5 flex items-center gap-1">
+                                                    📌 Disematkan
+                                                </span>
+                                            )}
+                                        </div>
                                         <CreatorBadge createdBy={n.createdBy} />
                                         <h4 className="font-bold text-slate-800">{n.title}</h4>
                                         <p className="text-xs text-slate-500">
@@ -878,7 +898,8 @@ const ContentManager = ({ user, role }) => {
                                         )}
                                     </div>
                                 </div>
-                            ))}
+                            );
+                        })}
                         </div>
                     </div>
                 </div>
