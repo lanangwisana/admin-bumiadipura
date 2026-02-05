@@ -862,7 +862,7 @@ const ContentManager = ({ user, role }) => {
                                         <CreatorBadge createdBy={n.createdBy} />
                                         <h4 className="font-bold text-slate-800">{n.title}</h4>
                                         <p className="text-xs text-slate-500">
-                                            {formatDate(n.createdAt)} {n.time && `• ${n.time}`} - Oleh {n.sender}
+                                            {formatDate(n.createdAt)} - Oleh {n.sender}
                                         </p>
                                     </div>
                                     <div className="flex gap-2">
@@ -996,7 +996,7 @@ const ContentManager = ({ user, role }) => {
                                             </span>
                                         </td>
                                         <td className="p-4 text-slate-500 text-xs text-nowrap">
-                                            {formatDate(n.createdAt)} {n.time && <span className="opacity-60 ml-1">• {n.time}</span>}
+                                            {formatDate(n.createdAt)}
                                         </td>
                                         <td className="p-4">
                                             <div className="flex gap-2 justify-center">
