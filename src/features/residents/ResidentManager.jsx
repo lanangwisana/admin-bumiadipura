@@ -56,6 +56,7 @@ const ResidentManager = ({ user }) => {
     resident: null,
   });
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedRtFilter, setSelectedRtFilter] = useState("ALL");
   const [formData, setFormData] = useState({
     name: "",
     unit: "",
@@ -66,6 +67,17 @@ const ResidentManager = ({ user }) => {
     family: [],
   });
   const [familyTemp, setFamilyTemp] = useState({ name: "", relation: "Istri" });
+  const [toast, setToast] = useState({ show: false, message: "", type: "success" });
+
+  // Auto-hide toast after 3 seconds
+  useEffect(() => {
+    if (toast.show) {
+      const timer = setTimeout(() => {
+        setToast({ ...toast, show: false });
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast.show]);
 
   // Realtime listener for residents collection with scope filtering
   useEffect(() => {
@@ -168,6 +180,13 @@ const ResidentManager = ({ user }) => {
   // Handle form submit - Create or Update resident
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validate required job field
+    if (!formData.job || !formData.job.trim()) {
+      alert("Pekerjaan wajib diisi!");
+      return;
+    }
+    
     try {
       // Logic for Final Unit String
       // Combine unit input "A1/10" with RT "01" -> "A1/10 (RT 01)"
@@ -242,8 +261,6 @@ const ResidentManager = ({ user }) => {
             // Non-blocking error, user still updated in main list
           }
         }
-
-        alert("Data warga berhasil diperbarui (Sinkronasi Akun OK)!");
       } else {
         // Create new resident
         await addDoc(
@@ -253,10 +270,18 @@ const ResidentManager = ({ user }) => {
             createdAt: new Date().toISOString(),
           },
         );
-        alert("Warga baru berhasil ditambahkan!");
       }
+
+      // Close modal and reset form FIRST (immediate feedback)
       setIsModalOpen(false);
       resetForm();
+      
+      // Show success toast
+      setToast({
+        show: true,
+        message: isEditMode ? "Data warga berhasil diperbarui!" : "Warga baru berhasil ditambahkan!",
+        type: "success"
+      });
     } catch (error) {
       console.error("Error saving resident:", error);
       alert("Gagal menyimpan data warga! Error: " + error.message);
@@ -324,13 +349,34 @@ const ResidentManager = ({ user }) => {
     });
   };
 
-  // Filter residents by search term
-  const filteredResidents = residents.filter(
-    (r) =>
+  // Filter residents by search term and RT (for RW)
+  const filteredResidents = residents.filter((r) => {
+    // 1. Check Search Term
+    const matchesSearch =
       r.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       r.unit?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.phone?.includes(searchTerm),
-  );
+      r.phone?.includes(searchTerm);
+
+    // 2. Check RT Filter (only if RW and filter is not ALL)
+    let matchesRt = true;
+    if (perms.isRW && selectedRtFilter !== "ALL") {
+      if (r.rt) {
+        // New standard: check explicit RT field
+        matchesRt = r.rt === selectedRtFilter;
+      } else {
+        // Fallback: check unit string for "RT XX"
+        // Normalizes "RT01", "RT 01", "RT.01" to match selected "01"
+        const unitUpper = (r.unit || "").toUpperCase();
+        matchesRt =
+          unitUpper.includes(`RT${selectedRtFilter}`) ||
+          unitUpper.includes(`RT ${selectedRtFilter}`) ||
+          unitUpper.includes(`RT.${selectedRtFilter}`) ||
+          unitUpper.includes(`RT. ${selectedRtFilter}`);
+      }
+    }
+
+    return matchesSearch && matchesRt;
+  });
 
   // Get relation color
   const getRelationColor = (relation) => {
@@ -352,6 +398,28 @@ const ResidentManager = ({ user }) => {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Toast Notification */}
+      {toast.show && (
+        <div className={`fixed top-4 right-4 z-50 animate-fade-in flex items-center gap-3 px-5 py-4 rounded-xl shadow-lg ${
+          toast.type === "success" 
+            ? "bg-emerald-600 text-white" 
+            : "bg-red-600 text-white"
+        }`}>
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+            toast.type === "success" ? "bg-emerald-500" : "bg-red-500"
+          }`}>
+            {toast.type === "success" ? "✓" : "✕"}
+          </div>
+          <span className="font-medium">{toast.message}</span>
+          <button 
+            onClick={() => setToast({ ...toast, show: false })}
+            className="ml-2 hover:opacity-80"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -400,16 +468,40 @@ const ResidentManager = ({ user }) => {
         </div>
       )}
 
-      {/* Search Bar */}
-      <div className="relative">
-        <Search className="absolute left-4 top-3.5 w-5 h-5 text-slate-400" />
-        <input
-          type="text"
-          placeholder="Cari berdasarkan nama, unit, atau kontak..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-12 pr-4 py-3 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-sm"
-        />
+      {/* Search & Filter Bar */}
+      <div className="flex flex-col md:flex-row gap-4">
+        {/* RT Filter Dropdown (Only for RW) */}
+        {perms.isRW && (
+          <div className="w-full md:w-48 flex-shrink-0">
+             <select
+              value={selectedRtFilter}
+              onChange={(e) => setSelectedRtFilter(e.target.value)}
+              className="w-full p-3 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-sm font-medium text-slate-700 h-[46px]"
+            >
+              <option value="ALL">Semua RT</option>
+              {[...Array(10)].map((_, i) => {
+                const num = String(i + 1).padStart(2, "0");
+                return (
+                  <option key={num} value={num}>
+                    RT {num}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+        )}
+
+        {/* Search Input */}
+        <div className="relative flex-1">
+          <Search className="absolute left-4 top-3.5 w-5 h-5 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Cari berdasarkan nama, unit, atau kontak..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-12 pr-4 py-3 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-sm h-[46px]"
+          />
+        </div>
       </div>
 
       {/* Modal Create/Edit Warga */}
@@ -526,9 +618,10 @@ const ResidentManager = ({ user }) => {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-slate-600">
-                    Pekerjaan
+                    Pekerjaan <span className="text-red-500">*</span>
                   </label>
                   <select
+                    required
                     className="w-full p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                     value={
                       [
@@ -865,18 +958,21 @@ const ResidentManager = ({ user }) => {
 
             {/* Action Buttons */}
             <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => {
-                  setDetailModal({ open: false, resident: null });
-                  openEditModal(detailModal.resident);
-                }}
-                className="flex-1 py-3 px-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-              >
-                <Edit2 className="w-4 h-4" /> Edit Data
-              </button>
+              {/* Edit button - Only for RT users */}
+              {perms.isRT && (
+                <button
+                  onClick={() => {
+                    setDetailModal({ open: false, resident: null });
+                    openEditModal(detailModal.resident);
+                  }}
+                  className="flex-1 py-3 px-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  <Edit2 className="w-4 h-4" /> Edit Data
+                </button>
+              )}
               <button
                 onClick={() => setDetailModal({ open: false, resident: null })}
-                className="flex-1 py-3 px-4 border border-slate-200 rounded-xl font-bold text-slate-600 hover:bg-slate-50 transition-colors"
+                className={`py-3 px-4 border border-slate-200 rounded-xl font-bold text-slate-600 hover:bg-slate-50 transition-colors ${perms.isRW ? 'w-full' : 'flex-1'}`}
               >
                 Tutup
               </button>
@@ -1005,10 +1101,11 @@ const ResidentManager = ({ user }) => {
                           onClick={() =>
                             setDetailModal({ open: true, resident: r })
                           }
-                          className="text-blue-500 hover:text-blue-700 p-2 hover:bg-blue-50 rounded-lg transition-colors"
+                          className="text-blue-500 hover:text-blue-700 p-2 hover:bg-blue-50 rounded-lg transition-colors flex items-center gap-1"
                           title="Lihat detail & anggota keluarga"
                         >
                           <Eye className="w-4 h-4" />
+                          {perms.isRW && <span className="text-xs font-medium">Detail</span>}
                         </button>
 
                         {/* Edit & Delete - Only for RT (own residents) */}
@@ -1031,14 +1128,6 @@ const ResidentManager = ({ user }) => {
                               <Trash2 className="w-4 h-4" />
                             </button>
                           </>
-                        )}
-
-                        {/* RW sees view-only icon */}
-                        {perms.isRW && (
-                          <div className="flex items-center gap-1 text-blue-500 text-xs">
-                            <Eye className="w-3 h-3" />
-                            <span>View</span>
-                          </div>
                         )}
                       </div>
                     </td>

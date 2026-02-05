@@ -63,8 +63,8 @@ export default function AdminApp() {
         });
     }, []);
 
-    // Prepare currentUser object for permission system
-    const currentUser = role ? {
+    // Prepare currentUser object for permission system (memoized to prevent listener re-auth)
+    const currentUser = React.useMemo(() => role ? {
         role: role.type,      // 'RW' or 'RT'
         rtNumber: role.id,    // RT number (e.g. '01') or null for RW
         name: role.name,
@@ -72,7 +72,7 @@ export default function AdminApp() {
         uid: role.uid,
         scope: role.scope,
         label: role.label
-    } : null;
+    } : null, [role]);
 
     // Check if current user can access a feature
     const canAccess = (feature) => {
