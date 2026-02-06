@@ -618,7 +618,7 @@ const ResidentManager = ({ user }) => {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-slate-600">
-                    Pekerjaan <span className="text-red-500">*</span>
+                    Pekerjaan
                   </label>
                   <select
                     required
