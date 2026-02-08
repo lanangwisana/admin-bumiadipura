@@ -29,11 +29,19 @@ import { canAccessFeature } from './utils/permissions';
  * Handles authentication, navigation, and feature routing with authorization
  */
 export default function AdminApp() {
-    const [activeTab, setActiveTab] = useState('dashboard');
-    const [role, setRole] = useState(null); // { type, id, label, scope, name, email, uid }
+    const [activeTab, setActiveTab] = useState(() => localStorage.getItem('admin_active_tab') || 'dashboard');
+    const [role, setRole] = useState(() => {
+        const saved = localStorage.getItem('admin_role');
+        return saved ? JSON.parse(saved) : null;
+    });
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [sidebarOpen, setSidebarOpen] = useState(false);
+
+    // Persist Active Tab
+    useEffect(() => {
+        localStorage.setItem('admin_active_tab', activeTab);
+    }, [activeTab]);
 
     // Firebase Authentication
     useEffect(() => {
@@ -41,6 +49,8 @@ export default function AdminApp() {
             if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) { 
                 await signInWithCustomToken(auth, __initial_auth_token); 
             } else { 
+                // Admin might be using real auth eventually, but for now keep existing logic
+                // Ideally this should align with Warga's improved Auth
                 await signInAnonymously(auth); 
             } 
         };
@@ -53,8 +63,8 @@ export default function AdminApp() {
         });
     }, []);
 
-    // Prepare currentUser object for permission system
-    const currentUser = role ? {
+    // Prepare currentUser object for permission system (memoized to prevent listener re-auth)
+    const currentUser = React.useMemo(() => role ? {
         role: role.type,      // 'RW' or 'RT'
         rtNumber: role.id,    // RT number (e.g. '01') or null for RW
         name: role.name,
@@ -62,7 +72,7 @@ export default function AdminApp() {
         uid: role.uid,
         scope: role.scope,
         label: role.label
-    } : null;
+    } : null, [role]);
 
     // Check if current user can access a feature
     const canAccess = (feature) => {
@@ -108,7 +118,10 @@ export default function AdminApp() {
 
     // Login Screen
     if (!role) {
-        return <AdminLogin onLogin={(r) => setRole(r)} />;
+        return <AdminLogin onLogin={(r) => {
+            setRole(r);
+            localStorage.setItem('admin_role', JSON.stringify(r));
+        }} />;
     }
 
     // Main Dashboard
@@ -123,6 +136,8 @@ export default function AdminApp() {
                 onLogout={() => { 
                     setRole(null);
                     setActiveTab('dashboard');
+                    localStorage.removeItem('admin_role');
+                    localStorage.removeItem('admin_active_tab');
                 }}
                 isOpen={sidebarOpen}
                 onClose={() => setSidebarOpen(false)}
