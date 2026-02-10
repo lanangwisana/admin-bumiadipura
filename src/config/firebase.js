@@ -3,13 +3,13 @@ import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyComvKBpm5xRMCLHeqSoq1bmkrwrdzQ7Qk",
-  authDomain: "bumi-adipura-8ed0a.firebaseapp.com",
-  projectId: "bumi-adipura-8ed0a",
-  storageBucket: "bumi-adipura-8ed0a.firebasestorage.app",
-  messagingSenderId: "895579623434",
-  appId: "1:895579623434:web:c0ef256fc55cf6e0bd0ff3",
-  measurementId: "G-1QWESVPHGR"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 // Main app for general use
