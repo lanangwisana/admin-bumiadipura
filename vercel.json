@@ -1,5 +1,5 @@
 {
-  "ignoreBuildCommand": "bash -c '[ \"$VERCEL_GIT_COMMIT_REF\" != \"main\" ]'",
+  "ignoreCommand": "bash -c '[ \"$VERCEL_GIT_COMMIT_REF\" != \"main\" ]'",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ]
