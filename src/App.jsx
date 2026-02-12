@@ -161,7 +161,7 @@ export default function AdminApp() {
                 {activeTab === 'residents' && canAccess('residents') && <ResidentManager user={currentUser} />}
                 {activeTab === 'reports' && canAccess('reports') && <ReportPermitManager user={currentUser} />}
                 {activeTab === 'content' && canAccess('content') && <ContentManager user={currentUser} role={role} />}
-                {activeTab === 'forum' && canAccess('forum') && <ForumManager user={currentUser} />}
+                {activeTab === 'forum' && canAccess('forum') && <ForumManager user={currentUser} role={role} />}
                 {activeTab === 'finance' && canAccess('finance') && <FinanceManager user={currentUser} role={role} />}
                 {activeTab === 'users' && canAccess('users') && <UserManager user={currentUser} />}
                 {activeTab === 'iot' && canAccess('iot') && <IoTControl user={currentUser} />}
