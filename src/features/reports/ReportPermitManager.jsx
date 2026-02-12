@@ -905,7 +905,17 @@ const ReportPermitManager = ({ user }) => {
                     <span className="text-xs text-slate-400">{formatDate(item.createdAt)}</span>
                   </div>
                   <h3 className="font-bold text-slate-800">{activeTab === "reports" ? item.category : item.type}</h3>
-                  <p className="text-sm text-slate-600">{item.description}</p>
+                  <p className="text-sm text-slate-600">
+                    {item.description?.split(/(?<=\.\s)|(?<=\.$)/).map((segment, i) => {
+                      const colonIndex = segment.indexOf(':');
+                      if (colonIndex > 0 && colonIndex < 20) {
+                        const label = segment.substring(0, colonIndex);
+                        const rest = segment.substring(colonIndex);
+                        return <span key={i}><strong className="font-semibold text-slate-700">{label}</strong>{rest}</span>;
+                      }
+                      return <span key={i}>{segment}</span>;
+                    })}
+                  </p>
                   <div className="mt-2 flex flex-wrap gap-4 text-xs text-slate-500 font-mono">
                       <span>👤 {item.userName}</span>
                       <span>🏠 {item.userUnit}</span>

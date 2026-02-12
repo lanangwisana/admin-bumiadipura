@@ -4,15 +4,34 @@ import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc } from 'fireb
 import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { db, APP_ID, secondaryAuth } from '../../config';
 
-const EditUserModal = ({ user, onClose, onUpdate, isProcessing }) => {
+const EditUserModal = ({ user, onClose, onUpdate, isProcessing, existingUsers }) => {
     const [formData, setFormData] = useState({
         name: user.name || '',
         role: user.role || 'RT',
         rtNumber: user.rtNumber || '01'
     });
+    const [editError, setEditError] = useState('');
+
+    // Get occupied RT numbers (excluding current user being edited)
+    const occupiedRTs = existingUsers
+        .filter(u => u.role === 'RT' && u.id !== user.id)
+        .map(u => u.rtNumber);
+    const rwExists = existingUsers.some(u => u.role === 'RW' && u.id !== user.id);
 
     const handleSubmit = (e) => {
         e.preventDefault();
+        setEditError('');
+
+        // Validate duplicate role+wilayah
+        if (formData.role === 'RT' && occupiedRTs.includes(formData.rtNumber)) {
+            setEditError(`Ketua RT ${formData.rtNumber} sudah terdaftar oleh admin lain!`);
+            return;
+        }
+        if (formData.role === 'RW' && rwExists) {
+            setEditError('Pengurus RW sudah terdaftar! Hanya boleh ada 1 Pengurus RW.');
+            return;
+        }
+
         onUpdate(user.id, formData);
     };
 
@@ -28,6 +47,13 @@ const EditUserModal = ({ user, onClose, onUpdate, isProcessing }) => {
                         <X className="w-5 h-5"/>
                     </button>
                 </div>
+
+                {editError && (
+                    <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm mb-4 flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 flex-shrink-0"/>
+                        {editError}
+                    </div>
+                )}
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
@@ -54,7 +80,7 @@ const EditUserModal = ({ user, onClose, onUpdate, isProcessing }) => {
                             onChange={e => setFormData({...formData, role: e.target.value})}
                         >
                             <option value="RT">Ketua RT</option>
-                            <option value="RW">Pengurus RW</option>
+                            <option value="RW" disabled={rwExists}>Pengurus RW {rwExists ? '(Sudah ada)' : ''}</option>
                         </select>
                     </div>
 
@@ -66,9 +92,11 @@ const EditUserModal = ({ user, onClose, onUpdate, isProcessing }) => {
                                 value={formData.rtNumber} 
                                 onChange={e => setFormData({...formData, rtNumber: e.target.value})}
                             >
-                                {[1,2,3,4,5,6,7,8].map(n => (
-                                    <option key={n} value={`0${n}`}>RT 0{n}</option>
-                                ))}
+                                {[1,2,3,4,5,6,7,8].map(n => {
+                                    const rtNum = `0${n}`;
+                                    const isTaken = occupiedRTs.includes(rtNum);
+                                    return <option key={n} value={rtNum} disabled={isTaken}>RT {rtNum}{isTaken ? ' (Sudah ada)' : ''}</option>;
+                                })}
                             </select>
                         </div>
                     )}
@@ -148,6 +176,24 @@ const UserManager = () => {
             return;
         }
 
+        // Check duplicate role + wilayah RT
+        if (formData.role === 'RT') {
+            const rtTaken = users.some(u => u.role === 'RT' && u.rtNumber === formData.rtNumber);
+            if (rtTaken) {
+                setError(`Ketua RT ${formData.rtNumber} sudah terdaftar! Tidak boleh ada duplikat.`);
+                return;
+            }
+        }
+
+        // Check duplicate RW (hanya boleh 1)
+        if (formData.role === 'RW') {
+            const rwExists = users.some(u => u.role === 'RW');
+            if (rwExists) {
+                setError('Pengurus RW sudah terdaftar! Hanya boleh ada 1 Pengurus RW.');
+                return;
+            }
+        }
+
         setLoading(true);
 
         try {
@@ -205,7 +251,26 @@ const UserManager = () => {
 
     const handleUpdateUser = async (userId, updatedData) => {
         setIsEditing(true);
+        setError('');
         try {
+            // Server-side double check for duplicate role+wilayah
+            if (updatedData.role === 'RT') {
+                const rtTaken = users.some(u => u.id !== userId && u.role === 'RT' && u.rtNumber === updatedData.rtNumber);
+                if (rtTaken) {
+                    setError(`Ketua RT ${updatedData.rtNumber} sudah terdaftar oleh admin lain!`);
+                    setIsEditing(false);
+                    return;
+                }
+            }
+            if (updatedData.role === 'RW') {
+                const rwExists = users.some(u => u.id !== userId && u.role === 'RW');
+                if (rwExists) {
+                    setError('Pengurus RW sudah terdaftar! Hanya boleh ada 1.');
+                    setIsEditing(false);
+                    return;
+                }
+            }
+
             // Update Firestore
             await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'admin_accounts', userId), {
                 name: updatedData.name,
@@ -353,7 +418,7 @@ const UserManager = () => {
                                 disabled={loading}
                             >
                                 <option value="RT">Ketua RT</option>
-                                <option value="RW">Pengurus RW</option>
+                                <option value="RW" disabled={users.some(u => u.role === 'RW')}>Pengurus RW {users.some(u => u.role === 'RW') ? '(Sudah ada)' : ''}</option>
                             </select>
                         </div>
 
@@ -369,9 +434,11 @@ const UserManager = () => {
                                     onChange={e => setFormData({...formData, rtNumber: e.target.value})}
                                     disabled={loading}
                                 >
-                                    {[1,2,3,4,5,6,7,8].map(n => (
-                                        <option key={n} value={`0${n}`}>RT 0{n}</option>
-                                    ))}
+                                    {[1,2,3,4,5,6,7,8].map(n => {
+                                        const rtNum = `0${n}`;
+                                        const isTaken = users.some(u => u.role === 'RT' && u.rtNumber === rtNum);
+                                        return <option key={n} value={rtNum} disabled={isTaken}>RT {rtNum}{isTaken ? ' (Sudah ada)' : ''}</option>;
+                                    })}
                                 </select>
                             </div>
                         )}
@@ -476,6 +543,7 @@ const UserManager = () => {
                     onClose={() => setEditingUser(null)} 
                     onUpdate={handleUpdateUser}
                     isProcessing={isEditing}
+                    existingUsers={users}
                 />
             )}
         </div>
