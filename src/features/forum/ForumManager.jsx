@@ -43,7 +43,7 @@ const ForumManager = ({ user, role }) => {
         try {
             await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts'), {
                 content: newPost,
-                author: role?.label || user?.email?.split('@')[0] || 'Admin',
+                author: role?.name || role?.label || 'Admin',
                 authorId: user?.uid,
                 authorRole: role?.type || 'RT',
                 rt: role?.type === 'RT' ? (role?.id || '') : '',
@@ -66,9 +66,10 @@ const ForumManager = ({ user, role }) => {
         try {
             await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts', activeThread.id, 'comments'), {
                 content: newComment,
-                author: role?.label || 'Admin',
+                author: role?.name || role?.label || 'Admin',
                 authorId: user?.uid,
                 authorRole: role?.type || 'RW',
+                rt: role?.type === 'RT' ? (role?.id || '') : '',
                 createdAt: new Date().toISOString()
             });
             setNewComment('');
