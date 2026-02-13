@@ -701,69 +701,120 @@ const ContentManager = ({ user, role }) => {
                                 );
                             })()}
                         </div>
-                        <table className="w-full text-sm">
-                            <thead className="bg-slate-50 text-left">
-                                <tr>
-                                    <th className="p-4 font-bold text-slate-600">Nama Kegiatan</th>
-                                    <th className="p-4 font-bold text-slate-600">Kategori</th>
-                                    <th className="p-4 font-bold text-slate-600">Tanggal</th>
-                                    <th className="p-4 font-bold text-slate-600">Lokasi</th>
-                                    <th className="p-4 font-bold text-slate-600 text-center">Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {events.slice(RECENT_PER_PAGE).slice((eventsHistoryPage - 1) * HISTORY_PER_PAGE, eventsHistoryPage * HISTORY_PER_PAGE).map(ev => (
-                                    <tr 
-                                        key={ev.id} 
-                                        onClick={() => handleClickEvent(ev)}
-                                        className={`border-t cursor-pointer transition-colors ${
-                                            editingEventId === ev.id 
-                                                ? 'bg-blue-50' 
-                                                : 'hover:bg-slate-50'
-                                        }`}
-                                    >
-                                        <td className="p-4">
-                                            <div>
-                                                <p className="font-bold text-slate-800">{ev.title}</p>
+                        {/* Mobile: Card Layout */}
+                        <div className="md:hidden divide-y divide-slate-100">
+                            {events.slice(RECENT_PER_PAGE).slice((eventsHistoryPage - 1) * HISTORY_PER_PAGE, eventsHistoryPage * HISTORY_PER_PAGE).map(ev => (
+                                <div 
+                                    key={ev.id} 
+                                    onClick={() => handleClickEvent(ev)}
+                                    className={`p-4 cursor-pointer transition-colors ${
+                                        editingEventId === ev.id ? 'bg-blue-50' : 'hover:bg-slate-50'
+                                    }`}
+                                >
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className={`text-[10px] px-2 py-0.5 rounded font-bold flex-shrink-0 ${getEventCategoryColor(ev.category)}`}>
+                                                    {ev.category}
+                                                </span>
                                                 <CreatorBadge createdBy={ev.createdBy} />
                                             </div>
-                                        </td>
-                                        <td className="p-4">
-                                            <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${getEventCategoryColor(ev.category)}`}>
-                                                {ev.category}
-                                            </span>
-                                        </td>
-                                        <td className="p-4 text-slate-500 text-xs">
-                                            {formatEventDate(ev.date)} {ev.time ? `(${ev.time})` : ev.time === null ? '(Menyesuaikan)' : ''}
-                                        </td>
-                                        <td className="p-4 text-slate-500 text-xs">{ev.location}</td>
-                                        <td className="p-4">
-                                            <div className="flex gap-1 justify-center items-center">
-                                                {ev.image && (
-                                                    <button 
-                                                        onClick={(e) => { e.stopPropagation(); setPreviewImageUrl(ev.image); }}
-                                                        className="text-slate-400 hover:text-emerald-500 p-1"
-                                                        title="Lihat Gambar"
-                                                    >
-                                                        <ImageIcon className="w-4 h-4"/>
-                                                    </button>
-                                                )}
-                                                {/* Tombol hapus hanya muncul jika punya akses */}
-                                                {canEditEvent(ev) && (
-                                                    <button 
-                                                        onClick={(e) => { e.stopPropagation(); handleDelete('events', ev.id); }} 
-                                                        className="text-red-400 hover:text-red-600 p-1"
-                                                        title="Hapus"
-                                                    >
-                                                        <Trash2 className="w-4 h-4"/>
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </td>
+                                            <p className="font-bold text-sm text-slate-800 truncate">{ev.title}</p>
+                                            <p className="text-xs text-slate-500 mt-0.5">
+                                                {formatEventDate(ev.date)} {ev.time ? `(${ev.time})` : ev.time === null ? '(Menyesuaikan)' : ''}
+                                            </p>
+                                            <p className="text-xs text-slate-400">{ev.location}</p>
+                                        </div>
+                                        <div className="flex items-center gap-1 flex-shrink-0">
+                                            {ev.image && (
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); setPreviewImageUrl(ev.image); }}
+                                                    className="text-slate-400 hover:text-emerald-500 p-1.5 rounded-lg"
+                                                    title="Lihat Gambar"
+                                                >
+                                                    <ImageIcon className="w-4 h-4"/>
+                                                </button>
+                                            )}
+                                            {canEditEvent(ev) && (
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); handleDelete('events', ev.id); }} 
+                                                    className="text-red-400 hover:text-red-600 p-1.5 rounded-lg"
+                                                    title="Hapus"
+                                                >
+                                                    <Trash2 className="w-4 h-4"/>
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Desktop: Table Layout */}
+                        <div className="hidden md:block overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-slate-50 text-left">
+                                    <tr>
+                                        <th className="p-4 font-bold text-slate-600">Nama Kegiatan</th>
+                                        <th className="p-4 font-bold text-slate-600">Kategori</th>
+                                        <th className="p-4 font-bold text-slate-600">Tanggal</th>
+                                        <th className="p-4 font-bold text-slate-600">Lokasi</th>
+                                        <th className="p-4 font-bold text-slate-600 text-center">Aksi</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    {events.slice(RECENT_PER_PAGE).slice((eventsHistoryPage - 1) * HISTORY_PER_PAGE, eventsHistoryPage * HISTORY_PER_PAGE).map(ev => (
+                                        <tr 
+                                            key={ev.id} 
+                                            onClick={() => handleClickEvent(ev)}
+                                            className={`border-t cursor-pointer transition-colors ${
+                                                editingEventId === ev.id 
+                                                    ? 'bg-blue-50' 
+                                                    : 'hover:bg-slate-50'
+                                            }`}
+                                        >
+                                            <td className="p-4">
+                                                <div>
+                                                    <p className="font-bold text-slate-800">{ev.title}</p>
+                                                    <CreatorBadge createdBy={ev.createdBy} />
+                                                </div>
+                                            </td>
+                                            <td className="p-4">
+                                                <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${getEventCategoryColor(ev.category)}`}>
+                                                    {ev.category}
+                                                </span>
+                                            </td>
+                                            <td className="p-4 text-slate-500 text-xs">
+                                                {formatEventDate(ev.date)} {ev.time ? `(${ev.time})` : ev.time === null ? '(Menyesuaikan)' : ''}
+                                            </td>
+                                            <td className="p-4 text-slate-500 text-xs">{ev.location}</td>
+                                            <td className="p-4">
+                                                <div className="flex gap-1 justify-center items-center">
+                                                    {ev.image && (
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); setPreviewImageUrl(ev.image); }}
+                                                            className="text-slate-400 hover:text-emerald-500 p-1"
+                                                            title="Lihat Gambar"
+                                                        >
+                                                            <ImageIcon className="w-4 h-4"/>
+                                                        </button>
+                                                    )}
+                                                    {canEditEvent(ev) && (
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); handleDelete('events', ev.id); }} 
+                                                            className="text-red-400 hover:text-red-600 p-1"
+                                                            title="Hapus"
+                                                        >
+                                                            <Trash2 className="w-4 h-4"/>
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 )}
                 </>
@@ -985,58 +1036,95 @@ const ContentManager = ({ user, role }) => {
                                 );
                             })()}
                         </div>
-                        <table className="w-full text-sm">
-                            <thead className="bg-slate-50 text-left">
-                                <tr>
-                                    <th className="p-4 font-bold text-slate-600">Judul</th>
-                                    <th className="p-4 font-bold text-slate-600">Kategori</th>
-                                    <th className="p-4 font-bold text-slate-600">Tanggal</th>
-                                    <th className="p-4 font-bold text-slate-600 text-center">Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {news.slice(RECENT_PER_PAGE).slice((historyPage - 1) * HISTORY_PER_PAGE, historyPage * HISTORY_PER_PAGE).map(n => (
-                                    <tr 
-                                        key={n.id} 
-                                        onClick={() => handleClickNews(n)}
-                                        className={`border-t cursor-pointer transition-colors ${
-                                            editingNewsId === n.id 
-                                                ? 'bg-blue-50' 
-                                                : 'hover:bg-slate-50'
-                                        }`}
-                                    >
-                                        <td className="p-4">
-                                            <div className="flex items-center gap-2">
-                                                <p className="font-bold text-slate-800">{n.title}</p>
+                        {/* Mobile: Card Layout */}
+                        <div className="md:hidden divide-y divide-slate-100">
+                            {news.slice(RECENT_PER_PAGE).slice((historyPage - 1) * HISTORY_PER_PAGE, historyPage * HISTORY_PER_PAGE).map(n => (
+                                <div 
+                                    key={n.id} 
+                                    onClick={() => handleClickNews(n)}
+                                    className={`p-4 cursor-pointer transition-colors ${
+                                        editingNewsId === n.id ? 'bg-blue-50' : 'hover:bg-slate-50'
+                                    }`}
+                                >
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className={`text-[10px] px-2 py-0.5 rounded font-bold flex-shrink-0 ${getCategoryColor(n.cat || 'Pengumuman')}`}>
+                                                    {n.cat || 'Pengumuman'}
+                                                </span>
                                                 <CreatorBadge createdBy={n.createdBy} />
                                             </div>
-                                        </td>
-                                        <td className="p-4">
-                                            <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${getCategoryColor(n.cat || 'Pengumuman')}`}>
-                                                {n.cat || 'Pengumuman'}
-                                            </span>
-                                        </td>
-                                        <td className="p-4 text-slate-500 text-xs text-nowrap">
-                                            {formatDate(n.createdAt)}
-                                        </td>
-                                        <td className="p-4">
-                                            <div className="flex gap-2 justify-center">
-                                                {/* Tombol hapus hanya muncul jika punya akses */}
-                                                {canEditNews(n) && (
-                                                    <button 
-                                                        onClick={(e) => { e.stopPropagation(); handleDelete('news', n.id); }} 
-                                                        className="text-red-400 hover:text-red-600 p-1"
-                                                        title="Hapus"
-                                                    >
-                                                        <Trash2 className="w-4 h-4"/>
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </td>
+                                            <p className="font-bold text-sm text-slate-800 truncate">{n.title}</p>
+                                            <p className="text-xs text-slate-400 mt-0.5">{formatDate(n.createdAt)}</p>
+                                        </div>
+                                        {canEditNews(n) && (
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); handleDelete('news', n.id); }} 
+                                                className="text-red-400 hover:text-red-600 p-1.5 rounded-lg flex-shrink-0"
+                                                title="Hapus"
+                                            >
+                                                <Trash2 className="w-4 h-4"/>
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Desktop: Table Layout */}
+                        <div className="hidden md:block overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-slate-50 text-left">
+                                    <tr>
+                                        <th className="p-4 font-bold text-slate-600">Judul</th>
+                                        <th className="p-4 font-bold text-slate-600">Kategori</th>
+                                        <th className="p-4 font-bold text-slate-600">Tanggal</th>
+                                        <th className="p-4 font-bold text-slate-600 text-center">Aksi</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    {news.slice(RECENT_PER_PAGE).slice((historyPage - 1) * HISTORY_PER_PAGE, historyPage * HISTORY_PER_PAGE).map(n => (
+                                        <tr 
+                                            key={n.id} 
+                                            onClick={() => handleClickNews(n)}
+                                            className={`border-t cursor-pointer transition-colors ${
+                                                editingNewsId === n.id 
+                                                    ? 'bg-blue-50' 
+                                                    : 'hover:bg-slate-50'
+                                            }`}
+                                        >
+                                            <td className="p-4">
+                                                <div className="flex items-center gap-2">
+                                                    <p className="font-bold text-slate-800">{n.title}</p>
+                                                    <CreatorBadge createdBy={n.createdBy} />
+                                                </div>
+                                            </td>
+                                            <td className="p-4">
+                                                <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${getCategoryColor(n.cat || 'Pengumuman')}`}>
+                                                    {n.cat || 'Pengumuman'}
+                                                </span>
+                                            </td>
+                                            <td className="p-4 text-slate-500 text-xs text-nowrap">
+                                                {formatDate(n.createdAt)}
+                                            </td>
+                                            <td className="p-4">
+                                                <div className="flex gap-2 justify-center">
+                                                    {canEditNews(n) && (
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); handleDelete('news', n.id); }} 
+                                                            className="text-red-400 hover:text-red-600 p-1"
+                                                            title="Hapus"
+                                                        >
+                                                            <Trash2 className="w-4 h-4"/>
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 )}
                 </>
