@@ -510,7 +510,7 @@ const UserManager = () => {
                     </form>
                 </div>
                 
-                {/* Users Table */}
+                {/* Users List */}
                 <div className="lg:col-span-2">
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
                         <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
@@ -522,7 +522,57 @@ const UserManager = () => {
                                 {users.length} user
                             </span>
                         </div>
-                        <div className="overflow-x-auto">
+
+                        {/* Mobile: Card Layout */}
+                        <div className="lg:hidden divide-y divide-slate-100">
+                            {users.length === 0 ? (
+                                <div className="p-8 text-center text-slate-400 italic">
+                                    Belum ada data admin
+                                </div>
+                            ) : (
+                                users.map(u => (
+                                    <div key={u.id} className="p-4 flex items-center gap-3">
+                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0 ${
+                                            u.role === 'RW' ? 'bg-purple-500' : 'bg-blue-500'
+                                        }`}>
+                                            {u.name?.charAt(0)?.toUpperCase() || '?'}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 mb-0.5">
+                                                <p className="font-bold text-sm text-slate-800 truncate">{u.name}</p>
+                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0 ${
+                                                    u.role === 'RW' 
+                                                        ? 'bg-purple-100 text-purple-700' 
+                                                        : 'bg-blue-100 text-blue-700'
+                                                }`}>
+                                                    {u.role === 'RW' ? 'RW' : `RT ${u.rtNumber}`}
+                                                </span>
+                                            </div>
+                                            <p className="text-xs text-slate-400 truncate">{u.email || '-'}</p>
+                                        </div>
+                                        <div className="flex items-center gap-1 flex-shrink-0">
+                                            <button 
+                                                onClick={() => setEditingUser(u)}
+                                                className="text-amber-400 hover:text-amber-600 p-2 hover:bg-amber-50 rounded-lg transition-colors"
+                                                title="Edit user"
+                                            >
+                                                <Pencil className="w-4 h-4"/>
+                                            </button>
+                                            <button 
+                                                onClick={() => handleDelete(u)} 
+                                                className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition-colors"
+                                                title="Hapus user"
+                                            >
+                                                <Trash2 className="w-4 h-4"/>
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+
+                        {/* Desktop: Table Layout */}
+                        <div className="hidden lg:block overflow-x-auto">
                             <table className="w-full text-sm text-left">
                                 <thead className="bg-slate-50 border-b border-slate-100">
                                     <tr>
