@@ -64,7 +64,7 @@ const IPLConfiguration = ({ user }) => {
         ? {
             rtFees: {
               ...config.rtFees,
-              [perms.rtNumber]: form.rtFees[perms.rtNumber],
+              [perms.rtNumber]: Number(form.rtFees[perms.rtNumber]) || 0,
             },
             updatedAt: serverTimestamp(),
           }
@@ -212,7 +212,7 @@ const IPLConfiguration = ({ user }) => {
               onChange={(e) =>
                 setForm((prev) => ({
                   ...prev,
-                  rwFee: e.target.value,
+                  rwFee: Number(e.target.value),
                 }))
               }
               className={`w-full mt-1 p-2 border rounded ${
@@ -243,7 +243,7 @@ const IPLConfiguration = ({ user }) => {
               onChange={(e) =>
                 setForm((prev) => ({
                   ...prev,
-                  appFee: e.target.value,
+                  appFee: Number(e.target.value),
                 }))
               }
               className={`w-full mt-1 p-2 border rounded ${
@@ -289,7 +289,7 @@ const IPLConfiguration = ({ user }) => {
                       value={
                         editMode ? (rawFee ?? "") : formatRupiah(rawFee || 0)
                       }
-                      onChange={(e) => updateRTFee(rt, e.target.value)}
+                      onChange={(e) => updateRTFee(rt, Number(e.target.value))}
                       className={`flex-1 p-2 border rounded transition
               ${
                 isDisabled
