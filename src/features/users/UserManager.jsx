@@ -134,6 +134,7 @@ const UserManager = () => {
     const [loading, setLoading] = useState(false);
     const [editingUser, setEditingUser] = useState(null);
     const [isEditing, setIsEditing] = useState(false);
+    const [recoverMode, setRecoverMode] = useState(false);
 
     const [showPassword, setShowPassword] = useState(false);
     
@@ -230,7 +231,8 @@ const UserManager = () => {
             // Handle specific Firebase Auth errors
             switch (err.code) {
                 case 'auth/email-already-in-use':
-                    setError('Email sudah terdaftar di Firebase Authentication. Tambahkan ke database admin saja.');
+                    setError('Email ini sudah terdaftar di sistem login (Firebase Auth).');
+                    setRecoverMode(true);
                     break;
                 case 'auth/invalid-email':
                     setError('Format email tidak valid');
@@ -244,6 +246,36 @@ const UserManager = () => {
                 default:
                     setError(`Gagal menambahkan user: ${err.message}`);
             }
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Recover access for existing Auth users (skip auth creation, just add to DB)
+    const handleRecoverUser = async () => {
+        if (!confirm("Pulihkan akses untuk email ini? Pastikan user mengingat password lamanya.")) return;
+        
+        setLoading(true);
+        try {
+            await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'admin_accounts'), {
+                email: formData.email.toLowerCase(),
+                name: formData.name,
+                role: formData.role,
+                rtNumber: formData.role === 'RT' ? formData.rtNumber : '00',
+                uid: 'recovered_' + Date.now(), 
+                createdAt: new Date().toISOString(),
+                isRecovered: true
+            });
+
+            setFormData({ email: '', password: '', confirmPassword: '', name: '', role: 'RT', rtNumber: '01' });
+            setSuccess(`Akses berhasil dipulihkan! Silakan login.`);
+            setRecoverMode(false);
+            setError('');
+             
+            setTimeout(() => setSuccess(''), 5000);
+        } catch (err) {
+            console.error(err);
+            setError("Gagal memulihkan akses: " + err.message);
         } finally {
             setLoading(false);
         }
@@ -318,11 +350,30 @@ const UserManager = () => {
                         </div>
                     )}
 
-                    {/* Error Message */}
+                    {/* Error Message & Recovery */}
                     {error && (
-                        <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm mb-4 flex items-center gap-2">
-                            <AlertCircle className="w-4 h-4"/>
-                            {error}
+                        <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm mb-4">
+                            <div className="flex items-start gap-2">
+                                <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0"/>
+                                <div className="flex-1">
+                                    <p>{error}</p>
+                                    {recoverMode && (
+                                        <div className="mt-2 pt-2 border-t border-red-200">
+                                            <p className="text-xs text-red-800 mb-2 font-medium">
+                                                User ini tampaknya sudah punya akun login, tapi tidak ada di daftar admin.
+                                            </p>
+                                            <button 
+                                                type="button"
+                                                onClick={handleRecoverUser}
+                                                className="w-full bg-red-100 hover:bg-red-200 text-red-800 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1 border border-red-200"
+                                            >
+                                                <CheckCircle className="w-3 h-3"/>
+                                                Pulihkan Akses & Daftarkan
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     )}
 
@@ -339,7 +390,7 @@ const UserManager = () => {
                                     className="w-full p-2 pl-9 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none" 
                                     placeholder="admin@bumiadipura.com" 
                                     value={formData.email} 
-                                    onChange={e => { setFormData({...formData, email: e.target.value}); setError(''); }}
+                                    onChange={e => { setFormData({...formData, email: e.target.value}); setError(''); setRecoverMode(false); }}
                                     required
                                     disabled={loading}
                                 />

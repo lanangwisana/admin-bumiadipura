@@ -47,6 +47,9 @@ const Sidebar = ({
     return canAccessFeature(currentUser.role, item.feature);
   });
 
+  // State for logout confirmation
+  const [showLogoutConfirm, setShowLogoutConfirm] = React.useState(false);
+
   return (
     <>
       {/* Backdrop for mobile */}
@@ -136,13 +139,47 @@ const Sidebar = ({
         {/* Logout Button */}
         <div className="p-4 border-t border-emerald-800">
           <button
-            onClick={onLogout}
+            onClick={() => setShowLogoutConfirm(true)}
             className="w-full flex items-center gap-2 px-4 py-3 bg-emerald-950/50 hover:bg-red-900/80 text-emerald-100 hover:text-white rounded-xl transition-colors text-sm font-bold"
           >
             <LogOut className="w-4 h-4" /> Keluar Aplikasi
           </button>
         </div>
       </div>
+      {/* Logout Confirmation Modal */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl scale-100 animate-scale-in">
+            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4 mx-auto">
+              <LogOut className="w-6 h-6 text-red-600 ml-1" />
+            </div>
+            <h3 className="text-lg font-bold text-center text-gray-900 mb-2">
+              Konfirmasi Keluar
+            </h3>
+            <p className="text-center text-gray-500 text-sm mb-6">
+              Apakah Anda yakin ingin keluar dari aplikasi admin? Sesi Anda akan
+              diakhiri.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowLogoutConfirm(false)}
+                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-bold text-sm hover:bg-gray-50 transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => {
+                  onLogout();
+                  setShowLogoutConfirm(false);
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-red-600 text-white font-bold text-sm hover:bg-red-700 shadow-lg shadow-red-200 transition-colors"
+              >
+                Ya, Keluar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };
