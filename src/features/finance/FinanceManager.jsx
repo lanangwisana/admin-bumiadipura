@@ -527,26 +527,38 @@ const FinanceManager = ({ user }) => {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-slate-800">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+        <h2 className="text-xl sm:text-2xl font-bold text-slate-800">
           Manajemen Keuangan
         </h2>
-        <div className="flex gap-2 bg-slate-100 p-1 rounded-xl">
+        <div className="flex flex-wrap gap-2 bg-slate-100 p-1 rounded-xl w-full sm:w-auto">
           <button
             onClick={() => setActiveTab("cashflow")}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === "cashflow" ? "bg-white shadow text-emerald-700" : "text-slate-500"}`}
+            className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all ${
+              activeTab === "cashflow"
+                ? "bg-white shadow text-emerald-700"
+                : "text-slate-500"
+            }`}
           >
             Arus Kas
           </button>
           <button
             onClick={() => setActiveTab("bills")}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === "bills" ? "bg-white shadow text-emerald-700" : "text-slate-500"}`}
+            className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all ${
+              activeTab === "bills"
+                ? "bg-white shadow text-emerald-700"
+                : "text-slate-500"
+            }`}
           >
             Tagihan IPL
           </button>
           <button
             onClick={() => setActiveTab("ipl-config")}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === "ipl-config" ? "bg-white shadow text-emerald-700" : "text-slate-500"}`}
+            className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all ${
+              activeTab === "ipl-config"
+                ? "bg-white shadow text-emerald-700"
+                : "text-slate-500"
+            }`}
           >
             Konfigurasi IPL
           </button>
@@ -575,21 +587,19 @@ const FinanceManager = ({ user }) => {
 
           {/* Transaction Summary */}
           <div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               <StatCard
                 title="Total Pemasukan"
                 value={`Rp ${totalIncome.toLocaleString()}`}
                 icon={ArrowDownLeft}
                 color="bg-green-500"
               />
-
               <StatCard
                 title="Total Pengeluaran"
                 value={`Rp ${totalExpense.toLocaleString()}`}
                 icon={ArrowUpRight}
                 color="bg-red-500"
               />
-
               <StatCard
                 title="Saldo Akhir"
                 value={`Rp ${balance.toLocaleString()}`}
@@ -623,7 +633,7 @@ const FinanceManager = ({ user }) => {
           )}
 
           {/* Filters */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-4 mb-4">
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 space-y-4 mb-4">
             <div className="flex items-center gap-2">
               <Filter className="w-4 h-4 text-slate-500" />
               <span className="text-xs font-bold text-slate-500 uppercase">
@@ -631,13 +641,13 @@ const FinanceManager = ({ user }) => {
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {/* Filter Type */}
               <div>
                 <p className="text-xs font-semibold text-slate-500 mb-2">
                   Tipe Transaksi
                 </p>
-                <div className="flex gap-3">
+                <div className="flex flex-wrap gap-3">
                   {["Pemasukan", "Pengeluaran"].map((t) => (
                     <label
                       key={t}
@@ -710,7 +720,7 @@ const FinanceManager = ({ user }) => {
               <p className="text-xs font-semibold text-slate-500 mb-2">
                 Rentang Tanggal
               </p>
-              <div className="flex gap-2 max-w-md">
+              <div className="flex flex-col sm:flex-row gap-2 max-w-md">
                 <input
                   type="date"
                   className="border rounded-lg px-3 py-2 text-sm w-full"
@@ -736,85 +746,87 @@ const FinanceManager = ({ user }) => {
 
           {/* Transactions Table */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-slate-50 border-b">
-                <tr>
-                  <th className="p-4">Tanggal</th>
-                  <th className="p-4">Tipe</th>
-                  <th className="p-4">Kategori</th>
-                  <th className="p-4">Keterangan</th>
-                  <th className="p-4">Jumlah</th>
-                  {!isReadOnly && <th className="p-4 text-center">Aksi</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {transactions.length === 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 border-b">
                   <tr>
-                    <td
-                      colSpan={5 + (!isReadOnly ? 1 : 0)}
-                      className="p-8 text-center text-slate-400"
-                    >
-                      {perms.isRT
-                        ? "Belum ada transaksi untuk RT Anda"
-                        : "Belum ada transaksi"}
-                    </td>
+                    <th className="p-4">Tanggal</th>
+                    <th className="p-4">Tipe</th>
+                    <th className="p-4">Kategori</th>
+                    <th className="p-4">Keterangan</th>
+                    <th className="p-4">Jumlah</th>
+                    {!isReadOnly && <th className="p-4 text-center">Aksi</th>}
                   </tr>
-                ) : (
-                  paginatedTransactions.map((t) => (
-                    <tr key={t.id} className="border-b hover:bg-slate-50">
-                      <td className="p-4">{t.date}</td>
-                      <td className="p-4">{t.type}</td>
-                      <td className="p-4">{t.category}</td>
-                      <td className="p-4">
-                        <div className="font-medium text-slate-800">
-                          {t.description}
-                        </div>
-                        {perms.isRW && t.rt && (
-                          <div className="text-xs text-slate-500 mt-1">
-                            RT {t.rt}
-                          </div>
-                        )}
-                      </td>
-
+                </thead>
+                <tbody>
+                  {transactions.length === 0 ? (
+                    <tr>
                       <td
-                        className={`p-4 font-bold whitespace-nowrap ${
-                          t.type === "Pemasukan"
-                            ? "text-green-600"
-                            : "text-red-600"
-                        }`}
+                        colSpan={5 + (!isReadOnly ? 1 : 0)}
+                        className="p-8 text-center text-slate-400"
                       >
-                        {t.type === "Pemasukan" ? "+ " : "- "}
-                        Rp {t.amount.toLocaleString()}
+                        {perms.isRT
+                          ? "Belum ada transaksi untuk RT Anda"
+                          : "Belum ada transaksi"}
                       </td>
-                      {!isReadOnly && (
-                        <td className="p-4 text-center">
-                          <div className="flex justify-center gap-2">
-                            {canEdit && (
-                              <button
-                                onClick={() => handleEdit(t)}
-                                className="text-amber-500 hover:text-amber-700 p-2 hover:bg-amber-50 rounded-lg transition-colors"
-                                title="Edit transaksi"
-                              >
-                                <Edit2 className="w-4 h-4" />
-                              </button>
-                            )}
-                            {canDelete && (
-                              <button
-                                onClick={() => openDeleteModal(t.id)}
-                                className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition-colors"
-                                title="Hapus transaksi"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      )}
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    paginatedTransactions.map((t) => (
+                      <tr key={t.id} className="border-b hover:bg-slate-50">
+                        <td className="p-4">{t.date}</td>
+                        <td className="p-4">{t.type}</td>
+                        <td className="p-4">{t.category}</td>
+                        <td className="p-4">
+                          <div className="font-medium text-slate-800">
+                            {t.description}
+                          </div>
+                          {perms.isRW && t.rt && (
+                            <div className="text-xs text-slate-500 mt-1">
+                              RT {t.rt}
+                            </div>
+                          )}
+                        </td>
+
+                        <td
+                          className={`p-4 font-bold whitespace-nowrap ${
+                            t.type === "Pemasukan"
+                              ? "text-green-600"
+                              : "text-red-600"
+                          }`}
+                        >
+                          {t.type === "Pemasukan" ? "+ " : "- "}
+                          Rp {t.amount.toLocaleString()}
+                        </td>
+                        {!isReadOnly && (
+                          <td className="p-4 text-center">
+                            <div className="flex justify-center gap-2">
+                              {canEdit && (
+                                <button
+                                  onClick={() => handleEdit(t)}
+                                  className="text-amber-500 hover:text-amber-700 p-2 hover:bg-amber-50 rounded-lg transition-colors"
+                                  title="Edit transaksi"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
+                              )}
+                              {canDelete && (
+                                <button
+                                  onClick={() => openDeleteModal(t.id)}
+                                  className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition-colors"
+                                  title="Hapus transaksi"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* PAGINATION */}
@@ -1250,20 +1262,18 @@ const FinanceManager = ({ user }) => {
                 </div>
 
                 <div className="flex justify-between">
+                  <span className="text-slate-500">Metode Bayar</span>
+                  <span className="font-semibold capitalize">
+                    {actionModal.billing.paymentMethod}
+                  </span>
+                </div>
+
+                 <div className="flex justify-between">
                   <span className="text-slate-500">Nominal</span>
                   <span className="font-bold text-emerald-600">
                     Rp {actionModal.billing.nominal?.toLocaleString()}
                   </span>
                 </div>
-
-                {actionModal.billing.proofImage && (
-                  <button
-                    onClick={() => openProof(actionModal.billing.paymentProof)}
-                    className="text-emerald-600 font-semibold hover:underline mt-2"
-                  >
-                    Lihat Bukti Bayar
-                  </button>
-                )}
               </div>
             )}
 
