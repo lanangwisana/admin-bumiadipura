@@ -264,7 +264,12 @@ const DashboardOverview = ({ user, role, onNavigate }) => {
             sub="IPL Bulan Ini"
             icon={CreditCard}
             color="bg-orange-500"
-            onClick={() => onNavigate && onNavigate('finance')}
+            onClick={() => {
+              if (onNavigate) {
+                localStorage.setItem('finance_active_tab', 'bills');
+                onNavigate('finance');
+              }
+            }}
           />
           <StatCard
             title="Laporan Terbaru"

@@ -19,7 +19,14 @@ const FinanceManager = ({ user }) => {
     description: "",
     date: new Date().toISOString().split("T")[0],
   });
-  const [activeTab, setActiveTab] = useState("cashflow");
+  const [activeTab, setActiveTab] = useState(() => {
+    const saved = localStorage.getItem('finance_active_tab');
+    if (saved) {
+      localStorage.removeItem('finance_active_tab');
+      return saved;
+    }
+    return "cashflow";
+  });
   const [generatingBills, setGeneratingBills] = useState(false);
   const [filters, setFilters] = useState({
     type: [],
