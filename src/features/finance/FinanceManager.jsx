@@ -31,7 +31,7 @@ const FinanceManager = ({ user }) => {
   const [selectedImage, setSelectedImage] = useState(null);
   const [actionModal, setActionModal] = useState({
     isOpen: false,
-    type: "", // "verify" | "reject" | "cancelPaid"
+    type: "", // "verify" | "reject"
     billing: null,
     reason: "",
   });
@@ -71,6 +71,8 @@ const FinanceManager = ({ user }) => {
 
   const ITEMS_PER_PAGE = 5;
   const [currentPage, setCurrentPage] = useState(1);
+  const now = new Date();
+  const currentPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
   // PERMISSION SYSTEM
   const perms = usePermissions(user);
@@ -80,18 +82,30 @@ const FinanceManager = ({ user }) => {
   // RT: Full CRUD for own RT
   const isReadOnly = perms.isRW; // RW is read-only in finance
 
-  // Filter billings for RT - only show their area's residents
-  const filteredBillings = perms.isRW
-    ? billings
-    : billings.filter((b) => {
-        const unitLower = (b.unit || "").toLowerCase();
-        const rtMatch = `rt${perms.rtNumber}`;
-        return (
-          unitLower.includes(rtMatch) ||
-          unitLower.includes(`rt ${perms.rtNumber}`) ||
-          unitLower.includes(`rt0${perms.rtNumber}`)
-        );
-      });
+  // Filter billings for RT - only show their area's residents and unpaid/active bills
+  const visibleBillings = (
+    perms.isRW
+      ? billings
+      : billings.filter((b) => {
+          const unitLower = (b.unit || "").toLowerCase();
+          const rtMatch = `rt${perms.rtNumber}`;
+
+          return (
+            unitLower.includes(rtMatch) ||
+            unitLower.includes(`rt ${perms.rtNumber}`) ||
+            unitLower.includes(`rt0${perms.rtNumber}`)
+          );
+        })
+  ).filter((b) => {
+    const isCurrent = b.period === currentPeriod;
+    const isUnpaid = b.status !== "PAID";
+
+    const paidThisMonth =
+      b.status === "PAID" &&
+      b.verifiedAt?.toDate?.()?.toISOString().slice(0, 7) === currentPeriod;
+
+    return isCurrent || isUnpaid || paidThisMonth;
+  });
 
   // TRANSACTIONS
   useEffect(() => {
@@ -220,44 +234,44 @@ const FinanceManager = ({ user }) => {
   };
 
   const openDeleteModal = (id) => {
-  setDeleteModal({
-    isOpen: true,
-    transactionId: id,
-  });
-};
-
-const confirmDelete = async () => {
-  try {
-    await deleteDoc(
-      doc(
-        db,
-        "artifacts",
-        APP_ID,
-        "public",
-        "data",
-        "transactions",
-        deleteModal.transactionId,
-      ),
-    );
-
-    showFeedback({
-      title: "Berhasil",
-      message: "Transaksi berhasil dihapus",
+    setDeleteModal({
+      isOpen: true,
+      transactionId: id,
     });
-  } catch (err) {
-    console.error(err);
-    showFeedback({
-      type: "error",
-      title: "Gagal",
-      message: "Tidak dapat menghapus transaksi",
-    });
-  }
+  };
 
-  setDeleteModal({
-    isOpen: false,
-    transactionId: null,
-  });
-};
+  const confirmDelete = async () => {
+    try {
+      await deleteDoc(
+        doc(
+          db,
+          "artifacts",
+          APP_ID,
+          "public",
+          "data",
+          "transactions",
+          deleteModal.transactionId,
+        ),
+      );
+
+      showFeedback({
+        title: "Berhasil",
+        message: "Transaksi berhasil dihapus",
+      });
+    } catch (err) {
+      console.error(err);
+      showFeedback({
+        type: "error",
+        title: "Gagal",
+        message: "Tidak dapat menghapus transaksi",
+      });
+    }
+
+    setDeleteModal({
+      isOpen: false,
+      transactionId: null,
+    });
+  };
 
   const closeModal = () => {
     setIsModalOpen(false);
@@ -487,18 +501,10 @@ const confirmDelete = async () => {
       }
 
       if (type === "reject") {
-        await rejectPayment(billing, reason || "Alasan tidak diberikan");
+        await rejectPayment(billing, reason);
         showFeedback({
           title: "Pembayaran Ditolak",
           message: "Status pembayaran diperbarui",
-        });
-      }
-
-      if (type === "cancelPaid") {
-        await rejectPayment(billing, reason || "Pembatalan lunas");
-        showFeedback({
-          title: "Status Dibatalkan",
-          message: "Status lunas berhasil dibatalkan",
         });
       }
     } catch (err) {
@@ -1032,7 +1038,7 @@ const confirmDelete = async () => {
           </div>
 
           {/* Billing Table */}
-          {filteredBillings.length > 0 ? (
+          {visibleBillings.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-50 border-b">
@@ -1050,7 +1056,7 @@ const confirmDelete = async () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredBillings.map((b) => (
+                  {visibleBillings.map((b) => (
                     <tr key={b.id} className="border-b hover:bg-slate-50">
                       <td className="p-4">{b.residentName}</td>
                       <td className="p-4">{b.unit}</td>
@@ -1144,14 +1150,6 @@ const confirmDelete = async () => {
                               </button>
                             </div>
                           )}
-                          {b.status === "PAID" && (
-                            <button
-                              onClick={() => openActionModal(b, "cancelPaid")}
-                              className="px-4 py-2 rounded-lg border border-red-300 text-red-600 text-xs font-bold hover:bg-red-50 transition"
-                            >
-                              Batalkan Lunas
-                            </button>
-                          )}
                         </td>
                       )}
                     </tr>
@@ -1195,13 +1193,11 @@ const confirmDelete = async () => {
           </div>
         </div>
       )}
+
       {/* ACTION MODAL */}
       {actionModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
-          <div
-            className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl scale-100 transition-all"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 animate-fade-in">
             <div className="flex flex-col items-center text-center mb-6">
               <div
                 className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${
@@ -1214,89 +1210,114 @@ const confirmDelete = async () => {
                   <XCircle className="w-8 h-8 text-red-600" />
                 )}
               </div>
-              <h3 className="font-bold text-xl text-gray-900 mb-2">
-                {actionModal.type === "verify" && "Verifikasi Pembayaran"}
-                {actionModal.type === "reject" && "Tolak Pembayaran"}
-                {actionModal.type === "cancelPaid" && "Batalkan Status Lunas"}
-              </h3>
-              {(actionModal.type === "reject" ||
-                actionModal.type === "cancelPaid") &&
-                !actionModal.isConfirming && (
-                  <textarea
-                    placeholder="Tulis alasan..."
-                    className="w-full border rounded p-2 mb-4 text-sm"
-                    value={actionModal.reason}
-                    onChange={(e) =>
-                      setActionModal((prev) => ({
-                        ...prev,
-                        reason: e.target.value,
-                      }))
-                    }
-                  />
-                )}
-              <p className="text-sm text-gray-500">
+              {/* TITLE */}
+              <h3 className="text-lg font-bold text-slate-800 mb-4">
                 {actionModal.type === "verify"
-                  ? "Apakah Anda yakin ingin menandai pembayaran ini sebagai lunas?"
-                  : !actionModal.isConfirming
-                    ? "Masukkan alasan sebelum konfirmasi."
-                    : "Apakah Anda yakin ingin melanjutkan tindakan ini?"}
-              </p>
+                  ? "Verifikasi Pembayaran"
+                  : "Tolak Pembayaran"}
+              </h3>
             </div>
 
-            <div className="flex gap-3">
+            {/* CONTENT */}
+            {actionModal.billing && (
+              <div className="text-sm space-y-2 mb-4">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Nama</span>
+                  <span className="font-semibold">
+                    {actionModal.billing.residentName}
+                  </span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Unit</span>
+                  <span className="font-semibold">
+                    {actionModal.billing.unit}
+                  </span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Periode</span>
+                  <span className="font-semibold">
+                    {actionModal.billing.period}
+                  </span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Nominal</span>
+                  <span className="font-bold text-emerald-600">
+                    Rp {actionModal.billing.nominal?.toLocaleString()}
+                  </span>
+                </div>
+
+                {actionModal.billing.proofImage && (
+                  <button
+                    onClick={() => openProof(actionModal.billing.paymentProof)}
+                    className="text-emerald-600 font-semibold hover:underline mt-2"
+                  >
+                    Lihat Bukti Bayar
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* WARNING — ONLY VERIFY */}
+            {actionModal.type === "verify" && (
+              <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl text-xs mb-4">
+                ⚠️ Setelah klik <b>Verifikasi</b>:
+                <ul className="list-disc ml-4 mt-1 space-y-1">
+                  <li>
+                    Transaksi akan otomatis masuk ke pemasukan dan tidak bisa
+                    dibatalkan
+                  </li>
+                  <li>Pastikan pembayaran sudah valid</li>
+                </ul>
+              </div>
+            )}
+
+            {/* REJECT REASON */}
+            {actionModal.type === "reject" && (
+              <textarea
+                placeholder="Masukkan alasan penolakan..."
+                className="w-full border rounded-xl p-3 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-red-300"
+                value={actionModal.reason}
+                onChange={(e) =>
+                  setActionModal((prev) => ({
+                    ...prev,
+                    reason: e.target.value,
+                  }))
+                }
+              />
+            )}
+
+            {/* BUTTONS */}
+            <div className="flex justify-end gap-2">
               <button
                 onClick={() =>
                   setActionModal({
                     isOpen: false,
-                    type: "",
                     billing: null,
+                    type: "",
                     reason: "",
-                    isConfirming: false,
                   })
                 }
-                className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-200 transition-colors"
-                disabled={actionModal.isProcessing}
+                className="px-4 py-2 rounded-xl border font-semibold hover:bg-slate-50"
               >
-                Batal
+                Periksa Lagi
               </button>
+
               <button
-                onClick={async () => {
-                  // Jika reject/cancelPaid dan belum confirm, tampilkan confirm modal
-                  if (
-                    (actionModal.type === "reject" ||
-                      actionModal.type === "cancelPaid") &&
-                    !actionModal.isConfirming
-                  ) {
-                    setActionModal((prev) => ({ ...prev, isConfirming: true }));
-                    return;
-                  }
-
-                  setActionModal((prev) => ({ ...prev, isProcessing: true }));
-
-                  try {
-                    await handleActionConfirm();
-                  } finally {
-                    setActionModal({
-                      isOpen: false,
-                      type: "",
-                      billing: null,
-                      reason: "",
-                      isProcessing: false,
-                      isConfirming: false,
-                    });
-                  }
-                }}
-                className={`flex-1 px-4 py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors shadow-lg ${
-                  actionModal.type === "verify"
-                    ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-200"
-                    : "bg-red-600 text-white hover:bg-red-700 shadow-red-200"
-                }`}
+                onClick={handleActionConfirm}
+                disabled={
+                  actionModal.type === "reject" && !actionModal.reason.trim()
+                }
+                className={`px-4 py-2 rounded-xl font-bold text-white transition
+            ${
+              actionModal.type === "verify"
+                ? "bg-emerald-600 hover:bg-emerald-700"
+                : "bg-red-600 hover:bg-red-700 disabled:bg-red-300"
+            }`}
               >
-                {actionModal.isConfirming
-                  ? "Ya, Lanjutkan"
-                  : actionModal.type === "verify"
-                    ? "Verifikasi"
-                    : "Tolak"}
+                {actionModal.type === "verify" ? "Verifikasi" : "Tolak"}
               </button>
             </div>
           </div>
