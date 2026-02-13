@@ -119,7 +119,7 @@ const Sidebar = ({
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
+        <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto min-h-0">
           {accessibleMenuItems.map((item) => (
             <button
               key={item.id}
