@@ -153,33 +153,10 @@ const IPLConfiguration = ({ user }) => {
     }, duration);
   };
 
-  const FieldGuard = ({ disabled, message, children }) => {
-    return (
-      <div className="relative group">
-        {children}
-
-        {disabled && (
-          <div
-            className="
-          absolute -top-8 left-1/2 -translate-x-1/2
-          opacity-0 group-hover:opacity-100
-          transition
-          pointer-events-none
-        "
-          >
-            <div className="bg-slate-800 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap shadow">
-              {message}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
   return (
     <div className="space-y-6 animate-fade-in">
       {/* CARD */}
-      <div className="bg-white rounded-2xl shadow-sm border p-6">
+      <div className="bg-white rounded-2xl shadow-sm border p-4 sm:p-6 overflow-hidden">
         <div className="flex justify-between items-center mb-6">
           <div className="flex gap-3 items-center">
             <Settings className="w-6 h-6 text-emerald-600" />
@@ -267,7 +244,7 @@ const IPLConfiguration = ({ user }) => {
             <label className="text-xs font-bold text-slate-500">Iuran RT</label>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {visibleRTs.map((rt) => {
               const rawFee = form.rtFees?.[rt];
               const isDisabled =
@@ -275,7 +252,7 @@ const IPLConfiguration = ({ user }) => {
 
               return (
                 <div key={rt}>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 min-w-0">
                     <input
                       disabled
                       value={`RT ${rt}`}
@@ -312,25 +289,26 @@ const IPLConfiguration = ({ user }) => {
           </div>
         </div>
 
+        {/* IPL TABLE */}
         {!editMode && (
           <div className="mt-8">
             <h4 className="text-xs font-bold text-slate-500 mb-3">
               Tabel IPL per RT
             </h4>
 
-            <div className="overflow-hidden rounded-xl border">
-              <table className="w-full table-fixed text-sm">
-                <thead className="bg-slate-50 center">
-                  <tr className="text-center">
-                    <th className="p-3 w-1/6">RT</th>
-                    <th className="p-3 w-1/5">Iuran RT</th>
-                    <th className="p-3 w-1/5">Iuran RW</th>
-                    <th className="p-3 w-1/5">Biaya App</th>
-                    <th className="p-3 w-1/4">Total Tagihan</th>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 border-b">
+                  <tr>
+                    <th className="p-4">RT</th>
+                    <th className="p-4">Iuran RT</th>
+                    <th className="p-4">Iuran RW</th>
+                    <th className="p-4 whitespace-nowrap">Biaya App</th>
+                    <th className="p-4 whitespace-nowrap">Total Tagihan</th>
                   </tr>
                 </thead>
 
-                <tbody className="text-center">
+                <tbody>
                   {visibleRTs.map((rt) => {
                     const rwFee = Number(config.rwFee) || 0;
                     const appFee = Number(config.appFee) || 0;
@@ -339,17 +317,29 @@ const IPLConfiguration = ({ user }) => {
                     const total = rwFee + rtFee + appFee;
 
                     return (
-                      <tr key={rt} className="border-t">
-                        <td className="p-3">
-                          <span className="inline-block text-[12px] px-1.5 py-[2px] rounded-full font-bold bg-orange-500 text-white">
+                      <tr
+                        key={rt}
+                        className="border-b hover:bg-slate-50 transition"
+                      >
+                        <td className="p-4">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold bg-orange-500 text-white">
                             RT {rt}
                           </span>
                         </td>
-                        <td className="p-3">{formatRupiah(rtFee)}</td>
-                        <td className="p-3">{formatRupiah(rwFee)}</td>
-                        <td className="p-3">{formatRupiah(appFee)}</td>
 
-                        <td className="p-3 font-bold text-green-600">
+                        <td className="p-4 whitespace-nowrap">
+                          {formatRupiah(rtFee)}
+                        </td>
+
+                        <td className="p-4 whitespace-nowrap">
+                          {formatRupiah(rwFee)}
+                        </td>
+
+                        <td className="p-4 whitespace-nowrap">
+                          {formatRupiah(appFee)}
+                        </td>
+
+                        <td className="p-4 font-bold text-emerald-600 whitespace-nowrap">
                           {formatRupiah(total)}
                         </td>
                       </tr>
@@ -386,6 +376,7 @@ const IPLConfiguration = ({ user }) => {
           </div>
         )}
       </div>
+      
       {/* FEEDBACK MODAL */}
       {feedbackModal.isOpen && (
         <div className="fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
