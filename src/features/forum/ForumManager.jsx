@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trash2, MessageCircle, Send, ChevronLeft, Loader2, Users, ShieldCheck, User } from 'lucide-react';
+import { Trash2, MessageCircle, Send, ChevronLeft, Loader2, Users, ShieldCheck, User, AlertCircle, X } from 'lucide-react';
 import { collection, onSnapshot, query, orderBy, deleteDoc, doc, addDoc } from 'firebase/firestore';
 import { db, APP_ID } from '../../config';
 import { formatDate } from '../../utils';
@@ -11,6 +11,7 @@ const ForumManager = ({ user, role }) => {
     const [newPost, setNewPost] = useState('');
     const [newComment, setNewComment] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
+    const [deleteConfirm, setDeleteConfirm] = useState(null); // { type: 'post'|'comment', id, title }
     
     // Posts Listener
     useEffect(() => {
@@ -42,7 +43,7 @@ const ForumManager = ({ user, role }) => {
         try {
             await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts'), {
                 content: newPost,
-                author: role?.label || user?.email?.split('@')[0] || 'Admin',
+                author: role?.name || role?.label || 'Admin',
                 authorId: user?.uid,
                 authorRole: role?.type || 'RT',
                 rt: role?.type === 'RT' ? (role?.id || '') : '',
@@ -65,9 +66,10 @@ const ForumManager = ({ user, role }) => {
         try {
             await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts', activeThread.id, 'comments'), {
                 content: newComment,
-                author: role?.label || 'Admin',
+                author: role?.name || role?.label || 'Admin',
                 authorId: user?.uid,
                 authorRole: role?.type || 'RW',
+                rt: role?.type === 'RT' ? (role?.id || '') : '',
                 createdAt: new Date().toISOString()
             });
             setNewComment('');
@@ -77,26 +79,39 @@ const ForumManager = ({ user, role }) => {
         setIsProcessing(false);
     };
 
-    const handleDeletePost = async (id, e) => {
-        e.stopPropagation();
-        if (role?.type !== 'RW') {
-            alert("Hanya RW yang dapat menghapus postingan.");
-            return;
-        }
-        if (confirm("Hapus postingan ini secara permanen?")) {
-            await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'posts', id));
-            if (activeThread?.id === id) setActiveThread(null);
-        }
+    const confirmDelete = (type, id, title) => {
+        setDeleteConfirm({ type, id, title });
     };
 
-    const handleDeleteComment = async (commentId) => {
-        if (role?.type !== 'RW') {
-            alert("Hanya RW yang dapat menghapus komentar.");
-            return;
+    const executeDelete = async () => {
+        if (!deleteConfirm) return;
+        setIsProcessing(true);
+        try {
+            if (deleteConfirm.type === 'post') {
+                await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'posts', deleteConfirm.id));
+                if (activeThread?.id === deleteConfirm.id) setActiveThread(null);
+            } else if (deleteConfirm.type === 'comment') {
+                await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'posts', activeThread.id, 'comments', deleteConfirm.id));
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Gagal menghapus: ' + err.message);
         }
-        if (confirm("Hapus komentar ini?")) {
-            await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'posts', activeThread.id, 'comments', commentId));
-        }
+        setIsProcessing(false);
+        setDeleteConfirm(null);
+    };
+
+    const handleDeletePost = (id, e) => {
+        e.stopPropagation();
+        if (role?.type !== 'RW') return;
+        const post = posts.find(p => p.id === id);
+        confirmDelete('post', id, post?.content?.substring(0, 60) || 'Postingan ini');
+    };
+
+    const handleDeleteComment = (commentId) => {
+        if (role?.type !== 'RW') return;
+        const comment = comments.find(c => c.id === commentId);
+        confirmDelete('comment', commentId, comment?.content?.substring(0, 60) || 'Komentar ini');
     };
 
     return (
@@ -175,10 +190,11 @@ const ForumManager = ({ user, role }) => {
                                     {role?.type === 'RW' && (
                                         <button 
                                             onClick={(e) => handleDeletePost(post.id, e)} 
-                                            className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-500 hover:bg-red-100 hover:text-red-700 rounded-xl text-xs font-bold transition-all border border-red-100 hover:border-red-200 shadow-sm"
                                             title="Hapus Postingan"
                                         >
-                                            <Trash2 className="w-4 h-4"/>
+                                            <Trash2 className="w-3.5 h-3.5"/>
+                                            Hapus
                                         </button>
                                     )}
                                 </div>
@@ -281,6 +297,48 @@ const ForumManager = ({ user, role }) => {
                                 <Send className="w-4 h-4"/>
                             </button>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Confirmation Modal */}
+            {deleteConfirm && (
+                <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-scale-in">
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-red-100 rounded-xl">
+                                    <AlertCircle className="w-6 h-6 text-red-600"/>
+                                </div>
+                                <h3 className="text-lg font-bold text-slate-800">Konfirmasi Hapus</h3>
+                            </div>
+                            <button onClick={() => setDeleteConfirm(null)} className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors">
+                                <X className="w-5 h-5 text-slate-400"/>
+                            </button>
+                        </div>
+                        <p className="text-sm text-slate-600 mb-2">Apakah Anda yakin ingin menghapus {deleteConfirm.type === 'post' ? 'postingan' : 'komentar'} ini?</p>
+                        <div className="bg-slate-50 p-3 rounded-xl mb-5 border border-slate-100">
+                            <p className="text-xs text-slate-500 italic line-clamp-2">"{deleteConfirm.title}..."</p>
+                        </div>
+                        <p className="text-[11px] text-red-500 mb-4 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3"/> Aksi ini tidak dapat dibatalkan.
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setDeleteConfirm(null)}
+                                className="flex-1 px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-200 transition-colors"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                onClick={executeDelete}
+                                disabled={isProcessing}
+                                className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl font-bold text-sm hover:bg-red-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-colors shadow-lg shadow-red-100"
+                            >
+                                {isProcessing ? <Loader2 className="w-4 h-4 animate-spin"/> : <Trash2 className="w-4 h-4"/>}
+                                {isProcessing ? 'Menghapus...' : 'Hapus'}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

@@ -1,7 +1,10 @@
 import React from 'react';
 
-const StatCard = ({ title, value, icon: Icon, color, sub }) => (
-  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 relative overflow-hidden group hover:shadow-md transition-shadow">
+const StatCard = ({ title, value, icon: Icon, color, sub, onClick }) => (
+  <div 
+    onClick={onClick}
+    className={`bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 relative overflow-hidden group transition-all ${onClick ? 'cursor-pointer hover:shadow-md hover:scale-[1.02] active:scale-95' : ''}`}
+  >
     <div className={`absolute right-0 top-0 p-4 opacity-10 transform translate-x-2 -translate-y-2 transition-transform group-hover:scale-110`}>
       <Icon className="w-16 h-16 text-slate-800" />
     </div>

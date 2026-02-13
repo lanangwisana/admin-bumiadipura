@@ -157,11 +157,11 @@ export default function AdminApp() {
                 </div>
                 
                 {/* Feature Routes with Permission Checks */}
-                {activeTab === 'dashboard' && <DashboardOverview user={currentUser} role={role} />}
+                {activeTab === 'dashboard' && <DashboardOverview user={currentUser} role={role} onNavigate={navigateToTab} />}
                 {activeTab === 'residents' && canAccess('residents') && <ResidentManager user={currentUser} />}
                 {activeTab === 'reports' && canAccess('reports') && <ReportPermitManager user={currentUser} />}
                 {activeTab === 'content' && canAccess('content') && <ContentManager user={currentUser} role={role} />}
-                {activeTab === 'forum' && canAccess('forum') && <ForumManager user={currentUser} />}
+                {activeTab === 'forum' && canAccess('forum') && <ForumManager user={currentUser} role={role} />}
                 {activeTab === 'finance' && canAccess('finance') && <FinanceManager user={currentUser} role={role} />}
                 {activeTab === 'users' && canAccess('users') && <UserManager user={currentUser} />}
                 {activeTab === 'iot' && canAccess('iot') && <IoTControl user={currentUser} />}
