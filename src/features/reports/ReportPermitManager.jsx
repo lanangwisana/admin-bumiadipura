@@ -530,7 +530,7 @@ const ReportPermitManager = ({ user }) => {
     
     // Level 2: Bertingkat (RT -> RW -> Approved)
     'Izin Renovasi': { level: 'TIERED' },
-    'Izin Acara Besar': { level: 'TIERED' }, // Disesuaikan dengan "Izin Acara" di dummy, pakai matching parsial nanti
+    'Izin Acara Besar': { level: 'TIERED' },
     'Izin Acara': { level: 'TIERED' }, 
     
     // Level 3: RW Saja (Fasum)
@@ -774,67 +774,7 @@ const ReportPermitManager = ({ user }) => {
         </div>
       </div>
 
-      {/* Seeder Button REMOVED for clean code, or kept if user wants testing. Let's keep minimal dev tool */}
-      {/* ... (Seeder code omitted for brevity as per user request to 'buatkan codingannya' implying the result, but I will keep it simple if needed. Actually I'll remove it to clean up as user didn't explicitly ask to keep it and it was 'temporary') */}
-      
-      {/* Seeder Button (Dev Only) */}
-      <div className="flex justify-end">
-          <button 
-              onClick={async () => {
-                  const confirm = window.confirm("Buat data dummy untuk testing Hybrid Approval?");
-                  if(!confirm) return;
-                  
-                  try {
-                       const dummyReports = [
-                          { title: "Lampu Jalan Mati", description: "Lampu penerangan di depan pos satpam mati total.", category: "Infrastruktur", status: "OPEN", userName: "Budi Santoso", userUnit: "A1/10 RT01" },
-                       ];
 
-                       const dummyPermits = [
-                           // CASE 1: RT ONLY (Direct Approve)
-                           { type: "Izin Tamu", description: "Tamu menginap 3 hari (Saudara dari kampung).", status: "PENDING", userName: "Ahmadi", userUnit: "A1/05 RT01" },
-                           { type: "Izin Parkir", description: "Parkir mobil tambahan di bahu jalan.", status: "PENDING", userName: "Siti Nurhaliza", userUnit: "B2/11 RT02" },
-
-                           // CASE 2: TIERED (RT -> RW)
-                           { type: "Izin Renovasi", description: "Renovasi pagar depan dan garasi.", status: "PENDING", userName: "Budi Santoso", userUnit: "A1/10 RT01" },
-                           { type: "Izin Acara", description: "Acara ulang tahun anak (mengundang 50 orang).", status: "WAITING_RW_APPROVAL", userName: "Dewi Lestari", userUnit: "B1/12 RT02", approvedByRT: "Ketua RT 02" }, // Simulated already approved by RT
-
-                           // CASE 3: RW ONLY (Fasum - bisa diajukan dari RT manapun, tapi approve langsung RW)
-                           { type: "Penggunaan Fasum", description: "Pinjam Gedung Serbaguna untuk Rapat Koperasi.", status: "PENDING", userName: "Ketua Koperasi", userUnit: "A2/01 RT01" }
-                       ];
-
-                       // Seed Reports
-                       for(const r of dummyReports) {
-                           await import('firebase/firestore').then(({addDoc, collection}) => 
-                               addDoc(collection(db, "artifacts", APP_ID, "public", "data", "reports"), {
-                                   ...r,
-                                   createdAt: new Date().toISOString(),
-                                   isDummy: true
-                               })
-                           );
-                       }
-                       
-                       // Seed Permits
-                       for(const p of dummyPermits) {
-                           await import('firebase/firestore').then(({addDoc, collection}) => 
-                               addDoc(collection(db, "artifacts", APP_ID, "public", "data", "permits"), {
-                                   ...p,
-                                   createdAt: new Date().toISOString(),
-                                   isDummy: true
-                               })
-                           );
-                       }
-                       
-                       alert("✅ Berhasil membuat Data Dummy Testing!");
-                  } catch(e) {
-                      console.error(e);
-                      alert("Gagal seeding: " + e.message);
-                  }
-              }}
-              className="text-xs text-slate-400 hover:text-slate-600 underline"
-          >
-              + Seed Data Dummy (Test Hybrid)
-          </button>
-      </div>
 
       {/* Status Filter Tabs */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4">
