@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { 
     Users, CreditCard, AlertTriangle, Shield, 
-    Radio, Brain, Sparkles, RefreshCw, BookOpen, FileText,
+    Radio, FileText,
     Clock, CheckCircle, AlertCircle
 } from 'lucide-react';
 import { doc, onSnapshot, collection, query, where, orderBy, limit, addDoc } from 'firebase/firestore';
 import { db, APP_ID } from '../../config';
 import { formatDate } from '../../utils';
-import { callGeminiAPI } from '../../utils';
+
 import { StatCard, BroadcastModal } from './components';
 
 /**
@@ -17,7 +17,7 @@ import { StatCard, BroadcastModal } from './components';
  * 2. Ringkasan Data (Cards) - Total Warga, Tagihan Pending, Laporan Terbaru, Status Main Gate
  * 3. Laporan Terbaru (Table) - Max 3 laporan, urut tanggal terbaru, status laporan
  */
-const DashboardOverview = ({ user, role }) => {
+const DashboardOverview = ({ user, role, onNavigate }) => {
   const [stats, setStats] = useState({
     residents: 0,
     pendingBills: 0,
@@ -25,8 +25,7 @@ const DashboardOverview = ({ user, role }) => {
     gateStatus: "Loading...",
   });
   const [recentReports, setRecentReports] = useState([]);
-  const [dailyBriefing, setDailyBriefing] = useState("");
-  const [isGeneratingBriefing, setIsGeneratingBriefing] = useState(false);
+
   const [showBroadcast, setShowBroadcast] = useState(false);
 
   useEffect(() => {
@@ -160,14 +159,7 @@ const DashboardOverview = ({ user, role }) => {
     };
   }, [user, role]);
 
-  // Generate AI Daily Briefing
-  const generateBriefing = async () => {
-    setIsGeneratingBriefing(true);
-    const prompt = `Buat ringkasan harian admin: ${stats.residents} warga total, ${stats.openReports} laporan warga menunggu, status gerbang utama ${stats.gateStatus}. Berikan saran prioritas.`;
-    const result = await callGeminiAPI(prompt);
-    setDailyBriefing(result);
-    setIsGeneratingBriefing(false);
-  };
+
 
   // Send Broadcast to news collection
   const sendBroadcast = async (data) => {
@@ -249,44 +241,7 @@ const DashboardOverview = ({ user, role }) => {
         </button>
       </div>
 
-      {/* AI Insight Section */}
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-3xl p-8 text-white shadow-2xl relative overflow-hidden">
-        <div className="absolute right-0 top-0 p-8 opacity-10">
-          <Brain className="w-40 h-40 text-white" />
-        </div>
-        <div className="relative z-10">
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <h3 className="text-2xl font-bold flex items-center gap-2">
-                <Sparkles className="w-6 h-6 text-yellow-300" />
-                AI Daily Insight
-              </h3>
-              <p className="text-blue-100 mt-1">
-                Asisten cerdas untuk efisiensi kerja admin.
-              </p>
-            </div>
-            <button
-              onClick={generateBriefing}
-              disabled={isGeneratingBriefing}
-              className="bg-white/20 hover:bg-white/30 px-5 py-2.5 rounded-xl text-sm font-bold backdrop-blur-md transition-colors flex items-center gap-2"
-            >
-              {isGeneratingBriefing ? (
-                <RefreshCw className="w-4 h-4 animate-spin" />
-              ) : (
-                <BookOpen className="w-4 h-4" />
-              )}
-              {isGeneratingBriefing ? "Menganalisis..." : "Analisa Harian"}
-            </button>
-          </div>
-          {dailyBriefing && (
-            <div className="bg-black/20 p-5 rounded-2xl border border-white/10 backdrop-blur-sm animate-fade-in">
-              <div className="prose prose-sm prose-invert max-w-none font-medium whitespace-pre-wrap leading-relaxed">
-                {dailyBriefing}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+
 
       {/* Ringkasan Data - Stats Grid */}
       <div>
@@ -301,6 +256,7 @@ const DashboardOverview = ({ user, role }) => {
             sub="Kepala Keluarga Terdaftar"
             icon={Users}
             color="bg-blue-500"
+            onClick={() => onNavigate && onNavigate('residents')}
           />
           <StatCard
             title="Tagihan Pending"
@@ -308,6 +264,7 @@ const DashboardOverview = ({ user, role }) => {
             sub="IPL Bulan Ini"
             icon={CreditCard}
             color="bg-orange-500"
+            onClick={() => onNavigate && onNavigate('finance')}
           />
           <StatCard
             title="Laporan Terbaru"
@@ -315,6 +272,7 @@ const DashboardOverview = ({ user, role }) => {
             sub="Menunggu Respon"
             icon={AlertTriangle}
             color="bg-red-500"
+            onClick={() => onNavigate && onNavigate('reports')}
           />
           <StatCard
             title="Status Main Gate"
@@ -324,6 +282,7 @@ const DashboardOverview = ({ user, role }) => {
             color={
               stats.gateStatus === "TERBUKA" ? "bg-red-500" : "bg-green-500"
             }
+            onClick={() => onNavigate && onNavigate('iot')}
           />
         </div>
       </div>
