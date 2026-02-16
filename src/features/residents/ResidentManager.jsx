@@ -840,14 +840,27 @@ const ResidentManager = ({ user }) => {
             <div className="space-y-4">
               {/* Header Card */}
               <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-xl p-5 text-white">
-                <h4 className="font-bold text-xl">
-                  {detailModal.resident.name}
-                </h4>
-                <div className="flex items-center gap-2 mt-2 opacity-90">
-                  <Home className="w-4 h-4" />
-                  <span className="text-sm">
-                    Unit {detailModal.resident.unit}
-                  </span>
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center overflow-hidden flex-shrink-0 border-2 border-white/30">
+                    {detailModal.resident.profilePhoto ? (
+                      <img src={detailModal.resident.profilePhoto} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-xl font-bold text-white">
+                        {(detailModal.resident.name || 'W').split(' ').filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-xl">
+                      {detailModal.resident.name}
+                    </h4>
+                    <div className="flex items-center gap-2 mt-1 opacity-90">
+                      <Home className="w-4 h-4" />
+                      <span className="text-sm">
+                        Unit {detailModal.resident.unit}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -912,8 +925,12 @@ const ResidentManager = ({ user }) => {
                 <div className="space-y-2">
                   {/* Kepala Keluarga */}
                   <div className="flex items-center gap-3 bg-emerald-50 p-3 rounded-xl border border-emerald-100">
-                    <div className="w-10 h-10 bg-emerald-600 rounded-full flex items-center justify-center text-white font-bold">
-                      {detailModal.resident.name?.charAt(0) || "K"}
+                    <div className="w-10 h-10 bg-emerald-600 rounded-full flex items-center justify-center text-white font-bold overflow-hidden">
+                      {detailModal.resident.profilePhoto ? (
+                        <img src={detailModal.resident.profilePhoto} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        detailModal.resident.name?.charAt(0) || "K"
+                      )}
                     </div>
                     <div className="flex-1">
                       <p className="font-bold text-slate-800">
@@ -1068,7 +1085,18 @@ const ResidentManager = ({ user }) => {
                       </span>
                     </td>
                     <td className="p-4">
-                      <div className="font-bold text-slate-800">{r.name}</div>
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                          {r.profilePhoto ? (
+                            <img src={r.profilePhoto} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-sm font-bold text-emerald-700">
+                              {(r.name || 'W').split(' ').filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                        <div>
+                          <div className="font-bold text-slate-800">{r.name}</div>
                       <div className="text-xs text-slate-500 mt-0.5">
                         <span
                           className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
@@ -1081,6 +1109,8 @@ const ResidentManager = ({ user }) => {
                         >
                           {r.status}
                         </span>
+                      </div>
+                        </div>
                       </div>
                     </td>
                     <td className="p-4">
