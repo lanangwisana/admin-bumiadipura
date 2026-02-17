@@ -1,7 +1,7 @@
 // use client;
 import React, { useState } from 'react';
 import { Lock, LogIn, Loader2, Mail, AlertCircle, ShieldCheck } from 'lucide-react';
-import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from 'firebase/auth';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db, auth, APP_ID, LOGO_URL } from '../../config';
 
@@ -29,7 +29,24 @@ const AdminLogin = ({ onLogin }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
+
     const [error, setError] = useState('');
+    const [showResetModal, setShowResetModal] = useState(false);
+    const [resetEmail, setResetEmail] = useState('');
+
+    const handleResetPassword = async (e) => {
+        e.preventDefault();
+        if (!resetEmail) return;
+        
+        try {
+            await sendPasswordResetEmail(auth, resetEmail);
+            alert(`Link reset password dikirim ke ${resetEmail}.\n\nSilakan cek Inbox atau folder SPAM Anda.`);
+            setShowResetModal(false);
+        } catch (err) {
+            console.error(err);
+            alert("Gagal mengirim link reset: " + err.message);
+        }
+    };
 
     /**
      * Handle Secure Login with Firebase Auth
@@ -238,6 +255,20 @@ const AdminLogin = ({ onLogin }) => {
                             </div>
                         </div>
 
+                        {/* Forgot Password Link */}
+                        <div className="flex justify-end -mt-3 px-1">
+                            <button 
+                                type="button" 
+                                onClick={() => {
+                                    setResetEmail(email);
+                                    setShowResetModal(true);
+                                }}
+                                className="text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:underline transition-all"
+                            >
+                                Lupa Password?
+                            </button>
+                        </div>
+
                         {/* Submit Button */}
                         <button 
                             disabled={loading} 
@@ -259,6 +290,49 @@ const AdminLogin = ({ onLogin }) => {
                     </div>
                 </div>
             </div>
+
+            
+            {/* Reset Password Modal */}
+            {showResetModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+                    <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl animate-scale-in relative" onClick={e => e.stopPropagation()}>
+                        <button onClick={() => setShowResetModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
+                            <AlertCircle className="w-5 h-5 rotate-45" />
+                        </button>
+                        
+                        <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mb-4 mx-auto">
+                            <Mail className="w-6 h-6 text-emerald-600" />
+                        </div>
+                        
+                        <h3 className="text-lg font-bold text-center text-slate-800 mb-2">Reset Password Admin</h3>
+                        <p className="text-center text-slate-500 text-xs mb-6">
+                            Masukkan email admin Anda. Kami akan mengirimkan link untuk membuat password baru.
+                        </p>
+
+                        <form onSubmit={handleResetPassword}>
+                             <input 
+                                type="email" 
+                                value={resetEmail}
+                                onChange={(e) => setResetEmail(e.target.value)}
+                                className="w-full p-3 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 mb-4"
+                                placeholder="admin@bumiadipura.com"
+                                required
+                                autoFocus
+                            />
+                            <button 
+                                type="submit"
+                                className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200"
+                            >
+                                Kirim Link Reset
+                            </button>
+                        </form>
+
+                        <p className="text-[10px] text-center text-amber-600 mt-4 font-medium italic bg-amber-50 p-2 rounded-lg border border-amber-100">
+                            ⚠️ Jangan lupa cek folder SPAM jika email tidak muncul di Inbox.
+                        </p>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
