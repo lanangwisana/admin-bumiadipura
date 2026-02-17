@@ -60,6 +60,7 @@ const ResidentManager = ({ user }) => {
   const [formData, setFormData] = useState({
     name: "",
     unit: "",
+    email: "",
     phone: "",
     job: "",
     status: "Tetap",
@@ -130,6 +131,7 @@ const ResidentManager = ({ user }) => {
       name: "",
       unit: "",
       rt: "",
+      email: "",
       phone: "",
       job: "",
       status: "Tetap",
@@ -166,6 +168,7 @@ const ResidentManager = ({ user }) => {
       name: resident.name || "",
       unit: resident.unit || "",
       rt: rtValue,
+      email: resident.email || "",
       phone: resident.phone || "",
       job: resident.job || "",
       status: resident.status || "Tetap",
@@ -601,6 +604,18 @@ const ResidentManager = ({ user }) => {
                 />
               </div>
 
+              <div className="space-y-2">
+                  <label className="text-sm font-bold text-slate-600 flex items-center justify-between">
+                     Email <span className="text-[10px] text-slate-400 font-normal italic">(Dikelola User via Aplikasi)</span>
+                  </label>
+                  <input
+                    type="email"
+                    value={formData.email || "-"}
+                    disabled
+                    className="w-full p-3 rounded-xl border border-slate-200 bg-slate-100 text-slate-500 font-bold cursor-not-allowed"
+                  />
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-slate-600">
@@ -616,6 +631,8 @@ const ResidentManager = ({ user }) => {
                     className="w-full p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
+
+
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-slate-600">
                     Pekerjaan
@@ -865,7 +882,7 @@ const ResidentManager = ({ user }) => {
               </div>
 
               {/* Info Grid */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-slate-50 rounded-xl p-4">
                   <div className="flex items-center gap-2 text-slate-500 mb-1">
                     <Phone className="w-4 h-4" />
@@ -873,6 +890,14 @@ const ResidentManager = ({ user }) => {
                   </div>
                   <p className="font-bold text-slate-800 font-mono">
                     {detailModal.resident.phone}
+                  </p>
+                </div>
+                <div className="bg-slate-50 rounded-xl p-4">
+                  <div className="flex items-center gap-2 text-slate-500 mb-1">
+                    <span className="text-xs font-bold uppercase">Email</span>
+                  </div>
+                  <p className="font-bold text-slate-800 break-all text-xs">
+                    {detailModal.resident.email || "-"}
                   </p>
                 </div>
                 <div className="bg-slate-50 rounded-xl p-4">
@@ -1054,6 +1079,9 @@ const ResidentManager = ({ user }) => {
                   Kontak
                 </th>
                 <th className="p-4 font-bold text-slate-600 text-xs uppercase tracking-wider">
+                  Email
+                </th>
+                <th className="p-4 font-bold text-slate-600 text-xs uppercase tracking-wider">
                   Pekerjaan
                 </th>
                 <th className="p-4 font-bold text-slate-600 text-xs uppercase tracking-wider text-center">
@@ -1116,6 +1144,11 @@ const ResidentManager = ({ user }) => {
                     <td className="p-4">
                       <span className="text-slate-600 font-mono text-xs bg-slate-100 px-2 py-1 rounded">
                         {r.phone}
+                      </span>
+                    </td>
+                    <td className="p-4">
+                      <span className="text-slate-600 text-xs">
+                        {r.email || "-"}
                       </span>
                     </td>
                     <td className="p-4 text-slate-600">{r.job || "-"}</td>

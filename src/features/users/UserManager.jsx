@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Trash2, Mail, User, Shield, AlertCircle, Lock, Eye, EyeOff, Loader2, CheckCircle, Pencil, Save, X } from 'lucide-react';
 import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc } from 'firebase/firestore';
-import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signOut, sendPasswordResetEmail } from 'firebase/auth';
 import { db, APP_ID, secondaryAuth } from '../../config';
 
 const EditUserModal = ({ user, onClose, onUpdate, isProcessing, existingUsers }) => {
@@ -327,6 +327,22 @@ const UserManager = () => {
         }
     };
 
+    const handleResetPassword = async (user) => {
+        if (!confirm(`Kirim link reset password ke email: ${user.email}?`)) return;
+        
+        try {
+            // Try with main auth first (assuming same project)
+            await sendPasswordResetEmail(secondaryAuth, user.email); 
+            // Use secondaryAuth just in case, or auth. 
+            // Since we created them with secondaryAuth, let's use secondaryAuth to be consistent, 
+            // though password reset is project-level.
+            alert(`Link reset password berhasil dikirim ke ${user.email}`);
+        } catch (err) {
+            console.error(err);
+            alert(`Gagal mengirim link reset password: ${err.message}`);
+        }
+    };
+
     return (
         <div className="space-y-6 animate-fade-in">
             <div>
@@ -565,6 +581,13 @@ const UserManager = () => {
                                             >
                                                 <Trash2 className="w-4 h-4"/>
                                             </button>
+                                            <button 
+                                                onClick={() => handleResetPassword(u)} 
+                                                className="text-blue-400 hover:text-blue-600 p-2 hover:bg-blue-50 rounded-lg transition-colors"
+                                                title="Reset Password"
+                                            >
+                                                <Lock className="w-4 h-4"/>
+                                            </button>
                                         </div>
                                     </div>
                                 ))
@@ -611,6 +634,13 @@ const UserManager = () => {
                                                 </td>
                                                 <td className="p-4 text-center">
                                                     <div className="flex items-center justify-center gap-2">
+                                                        <button 
+                                                            onClick={() => handleResetPassword(u)} 
+                                                            className="text-blue-400 hover:text-blue-600 p-2 hover:bg-blue-50 rounded-lg transition-colors"
+                                                            title="Reset Password"
+                                                        >
+                                                            <Lock className="w-4 h-4"/>
+                                                        </button>
                                                         <button 
                                                             onClick={() => setEditingUser(u)}
                                                             className="text-amber-400 hover:text-amber-600 p-2 hover:bg-amber-50 rounded-lg transition-colors"
