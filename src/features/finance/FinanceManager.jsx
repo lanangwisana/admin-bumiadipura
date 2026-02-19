@@ -89,7 +89,28 @@ const FinanceManager = ({ user }) => {
   // RT: Full CRUD for own RT
   const isReadOnly = perms.isRW; // RW is read-only in finance
 
+  // RESIDENTS LISTENER (For Name Sync & Orphan Filter)
+  const [residentMap, setResidentMap] = useState({});
+  const [residentsLoaded, setResidentsLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    const unsub = onSnapshot(
+      collection(db, "artifacts", APP_ID, "public", "data", "residents"),
+      (snap) => {
+        const map = {};
+        snap.docs.forEach((doc) => {
+          map[doc.id] = doc.data();
+        });
+        setResidentMap(map);
+        setResidentsLoaded(true);
+      }
+    );
+    return () => unsub();
+  }, [user]);
+
   // Filter billings for RT - only show their area's residents and unpaid/active bills
+  // ALSO: Filter out orphaned bills (resident deleted)
   const visibleBillings = (
     perms.isRW
       ? billings
@@ -104,14 +125,17 @@ const FinanceManager = ({ user }) => {
           );
         })
   ).filter((b) => {
+    // 1. Check Period/Status
     const isCurrent = b.period === currentPeriod;
     const isUnpaid = b.status !== "PAID";
-
     const paidThisMonth =
       b.status === "PAID" &&
       b.verifiedAt?.toDate?.()?.toISOString().slice(0, 7) === currentPeriod;
 
-    return isCurrent || isUnpaid || paidThisMonth;
+    // 2. Check Orphaned (Only if residents loaded to avoid flashing empty)
+    const isResidentExists = residentsLoaded ? !!residentMap[b.residentId] : true;
+
+    return (isCurrent || isUnpaid || paidThisMonth) && isResidentExists;
   });
 
   // TRANSACTIONS
@@ -135,6 +159,8 @@ const FinanceManager = ({ user }) => {
     });
     return () => unsub();
   }, [user, perms.isRT, perms.rtNumber]);
+
+
 
   // Transaction Summary
   const totalIncome = transactions
@@ -1075,9 +1101,21 @@ const FinanceManager = ({ user }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleBillings.map((b) => (
+                  {visibleBillings.map((b) => {
+                    // Use live name if available, otherwise fallback to stored snapshot
+                    const liveResident = residentMap[b.residentId];
+                    const displayName = liveResident ? liveResident.name : b.residentName;
+                    
+                    return (
                     <tr key={b.id} className="border-b hover:bg-slate-50">
-                      <td className="p-4">{b.residentName}</td>
+                      <td className="p-4">
+                        <span className="font-medium text-slate-700">{displayName}</span>
+                        {liveResident && liveResident.name !== b.residentName && (
+                          <span className="ml-2 text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded border border-yellow-200" title={`Nama di tagihan: ${b.residentName}`}>
+                            Update
+                          </span>
+                        )}
+                      </td>
                       <td className="p-4">{b.unit}</td>
                       <td className="p-4">{b.period}</td>
                       <td className="p-4 text-center whitespace-nowrap">
@@ -1172,7 +1210,8 @@ const FinanceManager = ({ user }) => {
                         </td>
                       )}
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1243,7 +1282,7 @@ const FinanceManager = ({ user }) => {
                 <div className="flex justify-between">
                   <span className="text-slate-500">Nama</span>
                   <span className="font-semibold">
-                    {actionModal.billing.residentName}
+                    {residentMap[actionModal.billing.residentId]?.name || actionModal.billing.residentName}
                   </span>
                 </div>
 

@@ -328,6 +328,27 @@ const ResidentManager = ({ user }) => {
         }
       }
 
+      // --- CLEANUP BILLINGS ---
+      // Delete all billings associated with this resident
+      try {
+        const billingQuery = query(
+          collection(db, "artifacts", APP_ID, "public", "data", "billings"),
+          where("residentId", "==", residentId)
+        );
+        const billingSnap = await getDocs(billingQuery);
+        
+        // Use batch for atomic deletion if possible, or parallel promises
+        if (!billingSnap.empty) {
+          const deletePromises = billingSnap.docs.map(d => deleteDoc(d.ref));
+          await Promise.all(deletePromises);
+          console.log(`Deleted ${billingSnap.size} billings for resident ${residentId}`);
+        }
+      } catch (err) {
+        console.error("Failed to cleanup billings:", err);
+        // Continue to delete resident even if billing cleanup fails? 
+        // Yes, to strictly follow user intent of deleting the resident.
+      }
+
       // Delete the Resident document
       await deleteDoc(residentRef);
       setDeleteModal({ open: false, resident: null });
